@@ -8,7 +8,7 @@ repository_initialization () {
 	mkvirtualenv "$PROJECT"
 	pip install -r "requirements.txt"
 	sudo docker build -t="flask" -rm=true .
-	sudo docker run -d -p 5000 flask
+	sudo docker run -d -p 5000 -v /vagrant/RulzUrAPI/api:/app/api:ro flask
 }
 
 main () {

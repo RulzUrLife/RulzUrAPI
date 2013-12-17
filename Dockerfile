@@ -10,11 +10,9 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu precise main universe" > /etc/apt
 RUN apt-get update
 RUN apt-get upgrade -y
 
-VOLUME /var/share
-
 RUN apt-get install -y python-pip
 
-ADD . app 
+ADD . app
 
 RUN pip install -r app/requirements.txt
 
