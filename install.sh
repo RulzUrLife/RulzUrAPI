@@ -2,13 +2,22 @@
 
 PROJECT="RulzUrAPI"
 TOP_DIR=$(cd $(dirname "$0") && pwd)
-source "/usr/local/bin/virtualenvwrapper.sh"
+
+docker_create () {
+  docker build -t="flask" -rm=true .
+}
+
+docker_run () {
+  docker run -d -p 5000 flask
+}
 
 repository_initialization () {
+  sudo apt-get install -y python-pip
+  sudo pip install virtualenv
+  sudo pip install virtualenvwrapper
+  source "/usr/local/bin/virtualenvwrapper.sh"
 	mkvirtualenv "$PROJECT"
 	pip install -r "requirements.txt"
-	sudo docker build -t="flask" -rm=true .
-	sudo docker run -d -p 5000 -v /vagrant/RulzUrAPI/api:/app/api:ro flask
 }
 
 main () {

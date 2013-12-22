@@ -12,7 +12,9 @@ RUN apt-get upgrade -y
 
 RUN apt-get install -y python-pip
 
-ADD . app
+ADD app.py app/
+ADD requirements.txt app/
+ADD api app/api
 
 RUN pip install -r app/requirements.txt
 
