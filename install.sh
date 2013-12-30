@@ -20,10 +20,8 @@ repository_initialization () {
   cd "$TOP_DIR"
   sudo apt-get install -y python-pip
   sudo pip install virtualenv
-  sudo pip install virtualenvwrapper
-  source "/usr/local/bin/virtualenvwrapper.sh"
-	mkvirtualenv "$PROJECT"
-	pip install -r "requirements.txt"
+	virtualenv .venv
+	.venv/bin/pip install -r "requirements.txt"
 }
 
 main () {
