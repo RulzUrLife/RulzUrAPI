@@ -17,6 +17,8 @@ docker_clean () {
 }
 
 venv_install () {
+  cd "$TOP_DIR"
+  [[ -a ".venv" ]] && rm -rf ".venv"
 	virtualenv .venv
 	.venv/bin/pip install -r "requirements.txt"
 	.venv/bin/pip install -r "requirements-tests.txt"
