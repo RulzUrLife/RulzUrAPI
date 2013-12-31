@@ -16,12 +16,17 @@ docker_clean () {
   docker rm $(docker ps -a -q)
 }
 
+venv_install () {
+	virtualenv .venv
+	.venv/bin/pip install -r "requirements.txt"
+	.venv/bin/pip install -r "requirements-tests.txt"
+}
+
 repository_initialization () {
   cd "$TOP_DIR"
   sudo apt-get install -y python-pip
   sudo pip install virtualenv
-	virtualenv .venv
-	.venv/bin/pip install -r "requirements.txt"
+  venv_install
 }
 
 main () {
@@ -39,6 +44,12 @@ main () {
     ;;
   "docker_clean")
     docker_clean
+    ;;
+  "venv_install")
+    venv_install
+    ;;
+  *)
+    echo "Command not found"
     ;;
   esac
 }
