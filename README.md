@@ -23,4 +23,13 @@ Usage `./manage.py install [options]`, options can be combined.
 
 If no option is specified, the install will perform a `-a` by default.
 
-Help is available with `./manage.py install -h`.
+Help is available with `./manage.py install -h`
+
+## docker
+Usage `./manage.py docker [options]`, options can be combined.
+
+* -b: build the docker container
+* -c: clean docker runtime (stop and remove containers)
+* -r: run the dedicated docker container
+
+Help is available with `./manage.py docker -h`

@@ -93,19 +93,48 @@ def install(options):
                        '  source .venv/bin/activate\n'
                        '\x1b[0m')
 
+
+def docker(options):
+    def docker_error(error):
+        if error.errno == errno.ENOENT:
+            parser.error('\x1b[0;31m'
+                         'Docker does not seem to be installed on your computer'
+                         ', please fix this and rerun the command'
+                         '\x1b[0m')
+
+    if options['clean']:
+        try:
+            processes = subprocess.check_output(['docker', 'ps', '-a', '-q'])
+            for process in processes.split():
+                subprocess.call(['docker', 'stop', process])
+                subprocess.call(['docker', 'rm', process])
+        except OSError as err:
+            docker_error(err)
+
+    if options['build']:
+        try:
+            subprocess.call([
+                'docker', 'build', '-t=%s' % PROJECT, '-rm=true', '.'
+            ])
+        except OSError as err:
+            docker_error(err)
+    if options['run']:
+        try:
+            subprocess.call(['docker', 'run', '-d', '-p', '80', PROJECT])
+        except OSError as err:
+            docker_error(err)
+
 if __name__ == '__main__':
     subparsers = parser.add_subparsers()
 
-    # subparsers
+    # install subparser
     parser_install = subparsers.add_parser(
         'install',  help='Install the development environment of the project',
     )
     parser_install.set_defaults(func=install)
-
-    # parser_install arguments
     parser_install.add_argument(
-        '-v', '--venv',
-        help='Install the python virtual environment of %s' % PROJECT,
+        '-a', '--all',
+        help='Install all the development environment of %s' % PROJECT,
         action='store_true'
     )
 
@@ -122,8 +151,32 @@ if __name__ == '__main__':
     )
 
     parser_install.add_argument(
-        '-a', '--all',
-        help='Install all the development environment of %s' % PROJECT,
+        '-v', '--venv',
+        help='Install the python virtual environment of %s' % PROJECT,
+        action='store_true'
+    )
+
+    # docker subparser
+    parser_install = subparsers.add_parser(
+        'docker',  help='Manage docker specific commands',
+    )
+    parser_install.set_defaults(func=docker)
+
+    parser_install.add_argument(
+        '-b', '--build',
+        help='Build the docker container for %s' % PROJECT,
+        action='store_true'
+    )
+
+    parser_install.add_argument(
+        '-c', '--clean',
+        help='Stops and clean all dockers daemon',
+        action='store_true'
+    )
+
+    parser_install.add_argument(
+        '-r', '--run',
+        help='Run the docker container associated with %s' % PROJECT,
         action='store_true'
     )
 
