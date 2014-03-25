@@ -1,4 +1,10 @@
 RulzUrAPI
 =========
 
-L'API de l'application, c'est le point d'entrée qui sera accessible aux services extérieurs
+The application API, this API will be public and used by the frontend.
+
+
+# Technologies
+
+ * Flask: a python microframework for web application,
+ [official website](http://flask.pocoo.org/).
