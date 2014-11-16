@@ -1,4 +1,6 @@
 from flask import Flask
+import api
+
 app = Flask(__name__)
 
-import api.views
+import api.endpoints
