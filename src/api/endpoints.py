@@ -1,5 +1,6 @@
 from api import app
+from flask import jsonify
 
 @app.route('/')
 def index():
-    return 'Hello World!'
+    return jsonify(tables=app.db.get_tables('rulzurkitchen'))

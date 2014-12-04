@@ -19,7 +19,8 @@ every OS without troubles.
 * Install docker on your distro https://docs.docker.com/
 * Check if docker is correctly install by running: `docker run hello-world`
 * Build the development container: `docker build -t rulzurapi .`
-* Run it! `docker run -v $(pwd):/opt/rulzurapi -p 5000:5000 -it rulzurapi`
+* Run it! `docker run -v $(pwd):/opt/rulzurapi -p 5000:5000
+--link rulzurdb:rulzurdb -it rulzurapi`
 (this command line can vary if it is not launched through an UNIX shell)
 
 # Command lines

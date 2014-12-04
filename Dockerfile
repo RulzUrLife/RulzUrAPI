@@ -24,7 +24,7 @@ RUN echo "deb http://ftp.debian.org/debian/ wheezy-updates main" >> /etc/apt/sou
 
 RUN apt-get update
 RUN apt-get upgrade -y
-RUN apt-get install -y gcc python-virtualenv python-dev
+RUN apt-get install -y gcc python-virtualenv python-dev libpq-dev
 RUN virtualenv ${VENVPATH}
 
 RUN pip install -r /opt/requirements/requirements.txt
