@@ -1,6 +1,10 @@
-from api import app
 from flask import jsonify
+
+from api import app
+
+import db.connector
 
 @app.route('/')
 def index():
-    return jsonify(tables=app.db.get_tables('rulzurkitchen'))
+    return jsonify(tables=db.connector.database.get_tables('rulzurkitchen'))
+

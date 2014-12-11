@@ -2,12 +2,8 @@ from flask import Flask
 import api
 import db.connector
 
+db.connector.database.init(**db.connector.config)
+app = Flask(__name__)
 
-class FlaskDB(Flask):
-    def __init__(self, import_name, database_object, *args, **kwargs):
-        super(FlaskDB, self).__init__(import_name, *args, **kwargs)
-        self.db = db.connector.db
-
-app = FlaskDB(__name__, db.connector.db)
 
 import api.endpoints
