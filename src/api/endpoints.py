@@ -1,10 +1,11 @@
-from flask import jsonify
-
-from api import app
-
+import flask
 import db.connector
 
-@app.route('/')
+endpoints_blueprint = flask.Blueprint('endpoint', __name__)
+
+@endpoints_blueprint.route('/')
 def index():
-    return jsonify(tables=db.connector.database.get_tables('rulzurkitchen'))
+    return flask.jsonify({
+        'tables': db.connector.database.get_tables('rulzurkitchen')
+    })
 
