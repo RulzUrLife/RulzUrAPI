@@ -1,3 +1,9 @@
+"""Entry point of the application
+
+Run on 0.0.0.0 by default (not configurable yet)
+
+Parses the DEBUG env variable which will be provided to flask
+"""
 import os
 
 import api

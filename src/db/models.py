@@ -1,3 +1,9 @@
+"""Database models
+
+Models from the database adapted to python through peewee ORM
+
+Due to non compliance with pylint we have a lot of exception in this file
+"""
 import peewee
 import playhouse.postgres_ext
 
@@ -6,34 +12,35 @@ import db.enum
 
 
 class BaseModel(peewee.Model):
-    @classmethod
-    def create_table(cls, *args, **kwargs):
-        for field in cls._meta.get_fields():
-            if hasattr(field, "pre_field_create"):
-                field.pre_field_create(cls)
-
-        cls._meta.database.create_table(cls)
-
-        for field in cls._meta.get_fields():
-            if hasattr(field, "post_field_create"):
-                field.post_field_create(cls)
-
+    """Define the common model configuration"""
+    #pylint: disable=no-init, old-style-class, too-few-public-methods
     class Meta:
+        """Define the common database configuration for the models
+
+        All the configuration is loaded from db.connector,
+        this is just a linking to have this in a dedicated file and share it to
+        the models
+        """
         database = db.connector.database
         schema = db.connector.schema
 
-
+#pylint: disable=too-few-public-methods
 class Ingredient(BaseModel):
+    """database's ingredient table"""
     id = peewee.PrimaryKeyField()
     name = peewee.CharField()
 
 
+#pylint: disable=too-few-public-methods
 class Utensil(BaseModel):
+    """database's utensil table"""
     id = peewee.PrimaryKeyField()
     name = peewee.CharField()
 
 
+#pylint: disable=too-few-public-methods
 class Recipe(BaseModel):
+    """database's recipe table"""
     id = peewee.PrimaryKeyField()
     name = peewee.CharField()
     directions = playhouse.postgres_ext.JSONField()
@@ -44,36 +51,63 @@ class Recipe(BaseModel):
     people = peewee.IntegerField()
     type = db.enum.EnumField(choices=['starter', 'main', 'dessert'])
 
+    #Foreign keys linking
+    utensils = None
+    ingredients = None
 
+
+#pylint: disable=too-few-public-methods
 class RecipeIngredients(BaseModel):
+    """database's recipe_ingredients table"""
     recipe = peewee.ForeignKeyField(
-            Recipe,
-            related_name='ingredients',
-            db_column='fk_recipe')
+        Recipe,
+        related_name='ingredients',
+        db_column='fk_recipe'
+    )
     ingredient = peewee.ForeignKeyField(
-            Ingredient,
-            related_name='recipes',
-            db_column='fk_ingredient')
+        Ingredient,
+        related_name='recipes',
+        db_column='fk_ingredient'
+    )
     quantity = peewee.IntegerField()
     measurement = db.enum.EnumField(choices=['L', 'g', 'oz', 'spoon'])
 
+    #pylint: disable=no-init, old-style-class
     class Meta:
+        """ManyToMany relationship for recipe_ingredients
+
+        primary_key need to be specified here
+
+        peewee does not handle the tables creation, so we have to make the name
+        linking by hand (db_tables)
+        """
         primary_key = peewee.CompositeKey('recipe', 'ingredient')
         db_table = 'recipe_ingredients'
 
 
+#pylint: disable=too-few-public-methods
 class RecipeUtensils(BaseModel):
+    """database's recipe_utensils table"""
     recipe = peewee.ForeignKeyField(
-            Recipe,
-            related_name='utensils',
-            db_column='fk_recipe'
-            )
+        Recipe,
+        related_name='utensils',
+        db_column='fk_recipe'
+    )
     utensil = peewee.ForeignKeyField(
-            Utensil,
-            related_name='recipes',
-            db_column='fk_utensil')
+        Utensil,
+        related_name='recipes',
+        db_column='fk_utensil'
+    )
 
+    #pylint: disable=no-init, old-style-class
     class Meta:
+        """ManyToMany relationship for recipe_utensils
+
+        primary_key need to be specified here
+
+        peewee does not handle the tables creation, so we have to make the name
+        linking by hand (db_tables)
+        """
         primary_key = peewee.CompositeKey('recipe', 'utensil')
         db_table = 'recipe_utensils'
 

@@ -1,7 +1,14 @@
+"""Integration tests for models
+
+Checks if models are valids by testing them against a clone of the database
+"""
+
 import db.models
 
 
 def test_model():
+    """Test insertions and linking"""
+
     ingredient_1 = db.models.Ingredient.create(name='test_ingredient_1')
     ingredient_2 = db.models.Ingredient.create(name='test_ingredient_2')
 
@@ -15,30 +22,30 @@ def test_model():
     assert utensil_2.id == 2
 
     recipe = db.models.Recipe.create(
-            name='test_recipe',
-            directions = {
-                'step 1': 'do whatever you want'
-                },
-            difficulty = 1,
-            people = 1,
-            duration = '0/5',
-            type = 'dessert'
-            )
+        name='test_recipe',
+        directions={
+            'step 1': 'do whatever you want'
+        },
+        difficulty=1,
+        people=1,
+        duration='0/5',
+        type='dessert'
+    )
     assert recipe.id == 1
 
     db.models.RecipeIngredients.create(
-            quantity=1,
-            recipe=recipe,
-            ingredient=ingredient_1,
-            measurement='oz'
-            )
+        quantity=1,
+        recipe=recipe,
+        ingredient=ingredient_1,
+        measurement='oz'
+    )
 
     db.models.RecipeIngredients.create(
-            quantity=1,
-            recipe=recipe,
-            ingredient=ingredient_2,
-            measurement='oz'
-            )
+        quantity=1,
+        recipe=recipe,
+        ingredient=ingredient_2,
+        measurement='oz'
+    )
     assert recipe.ingredients.count() == 2
     ingredients = [ingredient_1, ingredient_2]
 
@@ -51,14 +58,14 @@ def test_model():
     assert len(ingredients) == 0
 
     db.models.RecipeUtensils.create(
-            recipe=recipe,
-            utensil=utensil_1
-            )
+        recipe=recipe,
+        utensil=utensil_1
+    )
 
     db.models.RecipeUtensils.create(
-            recipe=recipe,
-            utensil=utensil_2
-            )
+        recipe=recipe,
+        utensil=utensil_2
+    )
     assert recipe.utensils.count() == 2
     utensils = [utensil_1, utensil_2]
 

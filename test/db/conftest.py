@@ -1,4 +1,4 @@
-import inspect
+"""Test configuration for the database testing (integration testing)"""
 import logging
 import os
 
@@ -19,11 +19,18 @@ if DEBUG:
 
 @pytest.fixture(autouse=True, scope='session')
 def create_test_db(request):
+    """Create a schema for testing the application
+
+    This use the clone_schema stored function from the database registry,
+    the clone_schema only copies tables and sequences but no datas
+    """
+
     def delete_test_db():
+        """Delete the schema used by the test"""
         db.connector.database.execute_sql(
             'DROP SCHEMA IF EXISTS %s CASCADE' % SCHEMA_TEST_NAME)
 
-    delete_test_db();
+    delete_test_db()
     db.connector.database.execute_sql(
         'SELECT clone_schema(%s, %s)', (
             db.connector.schema, SCHEMA_TEST_NAME))
@@ -32,36 +39,50 @@ def create_test_db(request):
 
 @pytest.fixture()
 def models():
-    # The models can't be retrieved automatically because the order must be
-    # respected for the deletion phase
-    return [db.models.RecipeUtensils,
-            db.models.RecipeIngredients,
-            db.models.Recipe,
-            db.models.Utensil,
-            db.models.Ingredient,
-            ]
+    """List all models used in those tests
+
+    The models can't be retrieved automatically because the order must be
+    respected for the deletion phase
+    """
+    return [
+        db.models.RecipeUtensils,
+        db.models.RecipeIngredients,
+        db.models.Recipe,
+        db.models.Utensil,
+        db.models.Ingredient,
+    ]
 
 
 @pytest.fixture(autouse=True)
+#pylint: disable=redefined-outer-name
 def patch_models(models):
+    """Patch the models in order to give them the cloned schema"""
     for model in models:
+        #pylint: disable=protected-access
         model._meta.schema = SCHEMA_TEST_NAME
 
 
 @pytest.fixture(autouse=True)
+#pylint: disable=redefined-outer-name
 def clean_db(request, models):
-    def delete_function(model):
-        q = model.delete()
-        q.execute()
+    """Delete datas for all the models (tables)
+
+    This function is ran after each test in order to be sure that the database
+    is clean between each test
+    """
 
     def clean():
-        map(delete_function, models)
+        """Apply the sql statement for deletion on each model"""
+        return [model.delete().execute() for model in  models]
 
     request.addfinalizer(clean)
 
 
-# Those are integration tests and can not be ran on the CI
-def pytest_ignore_collect(path, config):
+def pytest_ignore_collect(*_):
+    """Disable the collect if not on docker environment
+
+    Those are integration tests and can not be ran on Travis CI
+    """
     addr = os.environ.get('RULZURDB_PORT_5432_TCP_ADDR')
     port = os.environ.get('RULZURDB_PORT_5432_TCP_PORT')
 

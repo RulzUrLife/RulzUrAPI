@@ -9,4 +9,10 @@ install:
 env:
   - PYTHONPATH="$TRAVIS_BUILD_DIR/src"
 
-script: py.test
+before_script:
+  - source misc/pylint_files
+
+script: 
+  # run pylint with no reports
+  - pylint -r n $PYLINT_FILES
+  - py.test
