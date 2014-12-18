@@ -3,6 +3,7 @@ RulzUrAPI
 
 The application API, this API will be public and used by the frontend.
 
+[API Specification](./API.md)
 
 # Technologies
 
@@ -35,3 +36,4 @@ open an ipython shell into the container if you need to have the application
 reachable in the browser add the following option `-p 5000:5000` before `-it`
 * `docker run -v $(pwd):/opt/rulzurapi -it rulzurapi -c '!py.test'`:
 run the tests for the application
+
