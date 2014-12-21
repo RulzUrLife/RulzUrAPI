@@ -1,2 +1,2 @@
 export PYLINT_FILES="misc/default_app.py src/app.py src/api src/db \
- test/api/*.py test/db/*.py"
+    test/unit test/e2e"

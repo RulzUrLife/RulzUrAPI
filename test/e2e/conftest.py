@@ -11,7 +11,7 @@ SCHEMA_TEST_NAME = 'test_rulzurkitchen'
 DEBUG = False
 
 # Print all queries to stderr if debug enabled
-if DEBUG:
+if int(os.environ.get('DEBUG', 0)) != 0:
     logger = logging.getLogger('peewee')
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
