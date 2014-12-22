@@ -13,6 +13,7 @@ import api.endpoints
 import api.recipes
 import logging
 import os
+import api.ingredients
 
 db.connector.database.init(**db.connector.config)
 
@@ -31,5 +32,9 @@ app.register_blueprint(api.endpoints.endpoints_blueprint)
 app.register_blueprint(
     api.recipes.recipes_blueprint,
     url_prefix='/recipes'
+)
+app.register_blueprint(
+    api.ingredients.ingredients_blueprint,
+    url_prefix='/ingredients'
 )
 
