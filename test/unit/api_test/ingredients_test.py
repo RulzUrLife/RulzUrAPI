@@ -42,7 +42,7 @@ def test_ingredient_get_404(app, monkeypatch):
     ingredient = app.get('/ingredients/2')
     assert ingredient.status_code == 404
 
-def test_ingredient_get_recipes(app, monkeypatch):
+def test_ingredient_get_recipes(app, monkeypatch, recipe_select_mocking):
     """Test /ingredients/<id>/recipes"""
 
     recipes = [{'recipe_1' : 'recipe_1_content'}]
@@ -50,14 +50,7 @@ def test_ingredient_get_recipes(app, monkeypatch):
     mock_ingredient_get = mock.Mock()
     monkeypatch.setattr('db.models.Ingredient.get', mock_ingredient_get)
 
-    mock_recipe_select = mock.Mock()
-    (mock_recipe_select.return_value
-     .join.return_value
-     .where.return_value
-     .dicts.return_value) = recipes
-
-    monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
-
+    mock_recipe_select = recipe_select_mocking(recipes)
     ingredients_page = app.get('/ingredients/1/recipes')
 
     mock_ingredient_get.assert_called_once_with(
