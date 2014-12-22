@@ -8,6 +8,12 @@ API methods
 * `recipes/:id/ingredients`: Get the ingredients for a given recipe
 * `recipes/:id/utensils`: Get the utensils for a given recipe
 
+## Utensils
+
+* `utensils/`: List all utensils
+* `utensils/:id`: Get informations for a given utensil
+* `utensils/:id/recipes`: Get the recipes for a given utensil
+
 ## Ingredients
 
 * `ingredients/`: List all ingredients
