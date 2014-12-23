@@ -23,11 +23,3 @@ def index():
         'tables': db.connector.database.get_tables('rulzurkitchen')
     })
 
-@endpoints_blueprint.route('/ingredients')
-def ingredients():
-    """List all ingredients
-    """
-    return flask.jsonify({
-        'ingredients':
-            [ingredient.name for ingredient in db.models.Ingredient.select()]
-    })
