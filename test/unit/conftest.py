@@ -5,8 +5,9 @@ import api
 @pytest.fixture(autouse=True)
 def app():
     """Load flask in testing mode"""
-    api.app.config['TESTING'] = True
-    return api.app.test_client()
+    app_test = api.init_app()
+    app_test.config['TESTING'] = True
+    return app_test.test_client()
 
 
 @pytest.fixture

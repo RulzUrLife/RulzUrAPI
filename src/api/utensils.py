@@ -1,58 +1,50 @@
 """API utensils entrypoints"""
 
-import flask
-
-import db.connector
+import flask_restful
 import db.models
 
 import peewee
 
-# disable warning here due to Flask initialisation
-# pylint: disable=invalid-name
-utensils_blueprint = flask.Blueprint('utensils', __name__)
-
 def get_utensil(utensil_id):
     """Get a specific utensil or raise 404 if it does not exists"""
     try:
-        return db.models.Utensil.get(
-            db.models.Utensil.id == utensil_id
-        )
+        return db.models.Utensil.get(db.models.Utensil.id == utensil_id)
     except peewee.DoesNotExist:
-        flask.abort(404)
+        flask_restful.abort(404)
 
+# pylint: disable=too-few-public-methods
+class UtensilListAPI(flask_restful.Resource):
+    """/utensils/ endpoint"""
 
-@utensils_blueprint.route('/', defaults={'utensil_id': None})
-@utensils_blueprint.route('/<int:utensil_id>')
-def utensils(utensil_id):
-    """List all utensils or a specific one
+    # pylint: disable=no-self-use
+    def get(self):
+        """List all utensils"""
+        return {'utensils': list(db.models.Utensil.select().dicts())}
 
-    If optional argument utensil_id is given, this function return the specific
-    utensil, otherwise it returns the list of all utensils
-    """
+# pylint: disable=too-few-public-methods
+class UtensilAPI(flask_restful.Resource):
+    """/utensils/{utensil_id}/ endpoint"""
 
-    if utensil_id is None:
-        result = {
-            'utensils': list(db.models.Utensil.select().dicts())
-        }
-    else:
-        result = {
-            'utensil': get_utensil(utensil_id).to_dict()
-        }
+    # pylint: disable=no-self-use
+    def get(self, utensil_id):
+        """Provide the utensil for utensil_id"""
+        return {'utensil': get_utensil(utensil_id).to_dict()}
 
-    return flask.jsonify(result)
+# pylint: disable=too-few-public-methods
+class UtensilRecipeListAPI(flask_restful.Resource):
+    """/utensils/{utensil_id}/recipes endpoint"""
 
-@utensils_blueprint.route('/<int:utensil_id>/recipes')
-def recipes(utensil_id):
-    """List all the recipes of a specific utensil"""
+    # pylint: disable=no-self-use
+    def get(self, utensil_id):
+        """List all the recipes for utensil_id"""
+        get_utensil(utensil_id)
 
-    get_utensil(utensil_id)
+        recipes_query = (
+            db.models.Recipe
+            .select()
+            .join(db.models.RecipeUtensils)
+            .where(db.models.RecipeUtensils.utensil == utensil_id)
+            .dicts())
 
-    recipes_query = (
-        db.models.Recipe
-        .select()
-        .join(db.models.RecipeUtensils)
-        .where(db.models.RecipeUtensils.utensil == utensil_id)
-        .dicts())
-
-    return flask.jsonify({'recipes': list(recipes_query)})
+        return {'recipes': list(recipes_query)}
 

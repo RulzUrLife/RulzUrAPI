@@ -81,4 +81,3 @@ def test_utensil_get_recipes_404(app, monkeypatch):
     utensil = app.get('/utensils/2/recipes')
     assert utensil.status_code == 404
 
-

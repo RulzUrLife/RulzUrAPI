@@ -87,9 +87,8 @@ def pytest_ignore_collect(*_):
     port = os.environ.get('RULZURDB_PORT_5432_TCP_PORT')
 
     if not (bool(addr) and bool(port)):
-        # instanciate db connection
-        db.connector.database.init(**db.connector.config)
-
         return True
     else:
+        # instanciate db connection
+        db.connector.database.init(**db.connector.config)
         return False

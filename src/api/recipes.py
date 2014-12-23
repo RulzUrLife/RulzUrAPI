@@ -1,74 +1,74 @@
 """API recipes entrypoints"""
 
-import flask
+import flask_restful
 
 import db.connector
 import db.models
 
 import peewee
 
-# disable warning here due to Flask initialisation
-# pylint: disable=invalid-name
-recipes_blueprint = flask.Blueprint('recipes', __name__)
-
 def get_recipe(recipe_id):
     """Get a specific recipe or raise 404 if it does not exists"""
     try:
         return db.models.Recipe.get(db.models.Recipe.id == recipe_id)
     except peewee.DoesNotExist:
-        flask.abort(404)
+        flask_restful.abort(404)
 
+# pylint: disable=too-few-public-methods
+class RecipeListAPI(flask_restful.Resource):
+    """/recipes/ endpoint"""
 
-@recipes_blueprint.route('/', defaults={'recipe_id': None})
-@recipes_blueprint.route('/<int:recipe_id>')
-def recipes(recipe_id):
-    """List all recipes or a specific one
+    # pylint: disable=no-self-use
+    def get(self):
+        """List all recipes"""
+        return {'recipes': list(db.models.Recipe.select().dicts())}
 
-    If optional argument recipe_id is given, this function return the specific
-    recipe, otherwise it returns the list of all recipes
-    """
-    if recipe_id is None:
-        result = {
-            'recipes': list(db.models.Recipe.select().dicts())
-        }
-    else:
-        result = {
-            'recipe': get_recipe(recipe_id).to_dict()
-        }
+# pylint: disable=too-few-public-methods
+class RecipeAPI(flask_restful.Resource):
+    """/recipes/{recipe_id}/ endpoint"""
 
-    return flask.jsonify(result)
+    # pylint: disable=no-self-use
+    def get(self, recipe_id):
+        """Provide the recipe for recipe_id"""
+        return {'recipe': get_recipe(recipe_id).to_dict()}
 
-@recipes_blueprint.route('/<int:recipe_id>/ingredients')
-def ingredients(recipe_id):
-    """List all the ingredients of a specific recipe"""
+# pylint: disable=too-few-public-methods
+class RecipeIngredientListAPI(flask_restful.Resource):
+    """/recipes/{recipe_id}/ingredients endpoint"""
 
-    get_recipe(recipe_id)
+    # pylint: disable=no-self-use
+    def get(self, recipe_id):
+        """List all the ingredients for recipe_id"""
+        get_recipe(recipe_id)
 
-    ingredients_query = (
-        db.models.RecipeIngredients
-        .select(
-            db.models.RecipeIngredients.quantity,
-            db.models.RecipeIngredients.measurement,
-            db.models.Ingredient
-        )
-        .join(db.models.Ingredient)
-        .where(db.models.RecipeIngredients.recipe == recipe_id)
-        .dicts())
+        ingredients_query = (
+            db.models.RecipeIngredients
+            .select(
+                db.models.RecipeIngredients.quantity,
+                db.models.RecipeIngredients.measurement,
+                db.models.Ingredient
+            )
+            .join(db.models.Ingredient)
+            .where(db.models.RecipeIngredients.recipe == recipe_id)
+            .dicts())
 
-    return flask.jsonify({'ingredients': list(ingredients_query)})
+        return {'ingredients': list(ingredients_query)}
 
-@recipes_blueprint.route('/<int:recipe_id>/utensils')
-def utensils(recipe_id):
-    """List all the utensils of a specific recipe"""
+# pylint: disable=too-few-public-methods
+class RecipeUtensilListAPI(flask_restful.Resource):
+    """/recipes/{recipe_id}/utensils endpoint"""
 
-    get_recipe(recipe_id)
+    # pylint: disable=no-self-use
+    def get(self, recipe_id):
+        """List all the utensils for recipe_id"""
+        get_recipe(recipe_id)
 
-    utensils_query = (
-        db.models.Utensil
-        .select()
-        .join(db.models.RecipeUtensils)
-        .where(db.models.RecipeUtensils.recipe == recipe_id)
-        .dicts())
+        utensils_query = (
+            db.models.Utensil
+            .select()
+            .join(db.models.RecipeUtensils)
+            .where(db.models.RecipeUtensils.recipe == recipe_id)
+            .dicts())
 
-    return flask.jsonify({'utensils': list(utensils_query)})
+        return {'utensils': list(utensils_query)}
 
