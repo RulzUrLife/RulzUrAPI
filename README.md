@@ -1,4 +1,4 @@
-RulzUrAPI
+RulzUrAPI [![Build Status](https://travis-ci.org/RulzUrLife/RulzUrAPI.svg?branch=master)](https://travis-ci.org/RulzUrLife/RulzUrAPI)
 =========
 
 The application API, this API will be public and used by the frontend.
