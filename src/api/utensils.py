@@ -74,9 +74,7 @@ class UtensilAPI(flask_restful.Resource):
 
     def __init__(self):
         self.put_reqparse = flask_restful.reqparse.RequestParser()
-        self.put_reqparse.add_argument(
-            'name', type=str, required=True, location='json',
-        )
+        self.put_reqparse.add_argument('name', type=str, location='json')
         super(UtensilAPI, self).__init__()
 
     # pylint: disable=no-self-use
