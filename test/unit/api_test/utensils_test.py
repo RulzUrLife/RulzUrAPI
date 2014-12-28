@@ -52,14 +52,14 @@ def test_utensils_put(app, monkeypatch):
         {'id': 2, 'name': 'utensil_2', 'desc': 'description_utensil_2'},
     ]
 
-    def optimized_update_generator():
+    def optimized_update_utensil_generator():
         """Simple generator for optimized_update which returns utensils"""
         for utensil in utensils_update:
             yield utensil
 
     mock_optimized_update = mock.Mock()
     mock_optimized_update.return_value.execute.return_value = (
-        optimized_update_generator()
+        optimized_update_utensil_generator()
     )
     monkeypatch.setattr(
         'utils.helpers.optimized_update', mock_optimized_update
@@ -78,10 +78,10 @@ def test_utensils_put_cleanup_args(app, monkeypatch):
     """Test put /utensils/ arguments cleaner"""
     utensils = [{'id': 1, 'name': 'utensil_1', 'foo': 'bar'}]
 
-    mock_optimized_update = mock.Mock()
-    mock_optimized_update.return_value.execute.return_value = []
+    mock_optimized_update_utensil = mock.Mock()
+    mock_optimized_update_utensil.return_value.execute.return_value = []
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'utils.helpers.optimized_update', mock_optimized_update_utensil
     )
     app.put(
         '/utensils/', data=json.dumps({'utensils': utensils}),
@@ -90,17 +90,17 @@ def test_utensils_put_cleanup_args(app, monkeypatch):
     # get the first element of utensils and remove the "foo" entry
     utensil = utensils.pop()
     utensil.pop('foo')
-    assert mock_optimized_update.call_args[0][1] == utensil
+    assert mock_optimized_update_utensil.call_args[0][1] == utensil
 
 
 def test_utensils_put_400(app, monkeypatch):
     """Test put /utensils/ with wrong parameters"""
     utensils = [{'id': 1, 'name': 'utensil_1'}, {'name':'utensil_2'}]
 
-    mock_optimized_update = mock.Mock()
-    mock_optimized_update.return_value.execute.return_value = []
+    mock_optimized_update_utensil = mock.Mock()
+    mock_optimized_update_utensil.return_value.execute.return_value = []
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'utils.helpers.optimized_update', mock_optimized_update_utensil
     )
 
     utensils_update_page = app.put(
@@ -173,12 +173,12 @@ def test_utensil_put_cleanup_args(app, monkeypatch):
     """Test put /utensils/<id> arguments cleaner"""
     utensil = {'name': 'utensil_1', 'foo': 'bar'}
 
-    mock_optimized_update = mock.Mock()
-    (mock_optimized_update.return_value
+    mock_optimized_update_utensil = mock.Mock()
+    (mock_optimized_update_utensil.return_value
      .execute.return_value
      .next.return_value) = []
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'utils.helpers.optimized_update', mock_optimized_update_utensil
     )
     app.put(
         '/utensils/1', data=json.dumps(utensil),
@@ -186,20 +186,20 @@ def test_utensil_put_cleanup_args(app, monkeypatch):
     )
     # get the first element of utensil and remove the "foo" entry
     utensil.pop('foo')
-    assert mock_optimized_update.call_args[0][1] == utensil
+    assert mock_optimized_update_utensil.call_args[0][1] == utensil
 
 
 def test_utensil_put_404(app, monkeypatch):
     """Test put /utensils/<id> with utensil not found"""
     utensil = {'id': 1, 'name': 'utensil_1'}
 
-    mock_optimized_update = mock.Mock()
-    (mock_optimized_update.return_value
+    mock_optimized_update_utensil = mock.Mock()
+    (mock_optimized_update_utensil.return_value
      .execute.return_value
      .next.side_effect) = StopIteration()
 
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'utils.helpers.optimized_update', mock_optimized_update_utensil
     )
     utensil_update_page = app.put(
         '/utensils/1', data=json.dumps(utensil),

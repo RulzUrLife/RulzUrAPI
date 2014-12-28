@@ -1,7 +1,8 @@
 """Configuration and fixture for unit testing"""
 import pytest
-import api
 import ipdb
+
+import api
 import db.connector
 
 def mock_transaction():
@@ -9,8 +10,10 @@ def mock_transaction():
     def noop_decorator():
         """noop decorator (do nothing)"""
         return lambda x: x
+
     db.connector.database.transaction = noop_decorator
     reload(api.utensils)
+    reload(api.ingredients)
 
 mock_transaction()
 
