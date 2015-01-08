@@ -7,24 +7,18 @@ Initialise the database with the config in db.connector, this avoid multiple
 initialization accross the codebase
 
 """
-import flask
-import db.connector
-import logging
 import os
+
+import flask
+import flask_restful
+
 import api.recipes
 import api.utensils
 import api.ingredients
-import flask_restful
 
 
 def init_app():
     """Init the Flask app"""
-    db.connector.database.init(**db.connector.config)
-
-    if int(os.environ.get('DEBUG', 0)) != 0:
-        logger = logging.getLogger('peewee')
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(logging.StreamHandler())
 
     app = flask.Flask(__name__)
     public_api = flask_restful.Api(app)
