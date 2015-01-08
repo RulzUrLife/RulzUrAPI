@@ -25,6 +25,21 @@ class BaseModel(peewee.Model):
         fdict = dict((cls._meta.fields[f], v) for f, v in update.items())
         return db.orm.UpdateQuery(cls, update=fdict, returning=returning)
 
+    @classmethod
+    def insert_many(cls, rows):
+        return db.orm.InsertQuery(cls, rows=rows)
+
+    @classmethod
+    def insert_many_unique(cls, unique_field, rows):
+        """Insert many values if they not exists
+
+        unique_field determine the field on which the unique filter will be
+        applied
+
+        This function has a possibility of race condition, be sure to protect
+        your transaction and your table against concurrent access
+        """
+        return db.orm.InsertQuery(cls, unique=unique_field, rows=rows)
 
     class Meta:
         """Define the common database configuration for the models
@@ -67,6 +82,16 @@ class Recipe(BaseModel):
     utensils = None
     ingredients = None
 
+    def to_dict(self):
+        """Override to_dict to include utensils and ingredients
+
+        By default in peewee, foreign key linking does not appear in the field
+        attribute
+        """
+        data = super(Recipe, self).to_dict()
+        data['utensils'] = self.utensils or []
+        data['ingredients'] = self.ingredients or []
+        return data
 
 #pylint: disable=too-few-public-methods
 class RecipeIngredients(BaseModel):
