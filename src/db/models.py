@@ -9,7 +9,6 @@ import playhouse.postgres_ext
 
 import db.connector
 import db.orm
-import db.enum
 
 
 #pylint: disable=too-few-public-methods, no-init, old-style-class
@@ -57,11 +56,12 @@ class Recipe(BaseModel):
     name = peewee.CharField()
     directions = playhouse.postgres_ext.JSONField()
     difficulty = peewee.IntegerField()
-    duration = db.enum.EnumField(choices=[
+    duration = db.orm.EnumField(choices=[
         '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45', '45/60',
         '60/75', '75/90', '90/120', '120/150'])
     people = peewee.IntegerField()
-    type = db.enum.EnumField(choices=['starter', 'main', 'dessert'])
+    type = db.orm.EnumField(choices=['starter', 'main', 'dessert'])
+
 
     #Foreign keys linking
     utensils = None
@@ -82,7 +82,7 @@ class RecipeIngredients(BaseModel):
         db_column='fk_ingredient'
     )
     quantity = peewee.IntegerField()
-    measurement = db.enum.EnumField(choices=['L', 'g', 'oz', 'spoon'])
+    measurement = db.orm.EnumField(choices=['L', 'g', 'oz', 'spoon'])
 
     #pylint: disable=no-init, old-style-class
     class Meta:
