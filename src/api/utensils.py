@@ -57,15 +57,25 @@ class UtensilListAPI(flask_restful.Resource):
     def put(self):
         """Update multiple utensils"""
         args = self.put_reqparse.parse_args()
-        utensils = []
+        utensils, utensils_args = [], []
         nested_request = utils.helpers.NestedRequest()
+        # first check arguments
         for utensil in args.get('utensils'):
             nested_request.nested_json = utensil
             utensil = self.put_reqparse_utensil.parse_args(nested_request)
-            utensils += (
-                utils.helpers.optimized_update(db.models.Utensil, utensil)
-                .execute()
-            )
+            utensils_args.append((utensil.pop('id'), utensil))
+
+        # then run the sql commands
+        for utensil_id, utensil in utensils_args:
+            try:
+                utensils.append(db.models.Utensil
+                                .update(returning=True, **utensil)
+                                .where(db.models.Utensil.id == utensil_id)
+                                .dicts()
+                                .execute()
+                                .next())
+            except StopIteration:
+                pass
 
         return {'utensils': utensils}
 
@@ -85,12 +95,15 @@ class UtensilAPI(flask_restful.Resource):
     @db.connector.database.transaction()
     def put(self, utensil_id):
         """Update the utensil for utensil_id"""
-        args = (db.models.Utensil, self.put_reqparse.parse_args(), utensil_id)
+        utensil = self.put_reqparse.parse_args()
+
         try:
-            return {
-                'utensil': (utils.helpers.optimized_update(*args)
-                            .execute().next())
-            }
+            return (db.models.Utensil
+                    .update(returning=True, **utensil)
+                    .where(db.models.Utensil.id == utensil_id)
+                    .dicts()
+                    .execute()
+                    .next())
         except StopIteration:
             flask_restful.abort(404)
 

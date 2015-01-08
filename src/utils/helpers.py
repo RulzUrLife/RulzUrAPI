@@ -1,24 +1,6 @@
 """Helpers for rulzurapi"""
 import flask
 
-def optimized_update(model, fields, model_id=None):
-    """Optimize the update function
-
-    Postgres have a custom RETURNING keyword on update statement, this function
-    add it in an UpdateQuery in order to save requests
-    """
-    if model_id is None:
-        model_id = fields['id']
-
-    query = model.update(**fields).where(
-        model.id == model_id
-    ).sql()
-    #request optimization, perform only one request and return result
-    query = (model
-             .raw('%s RETURNING *' % query[0], *query[1])
-             .dicts())
-    return query
-
 # pylint: disable=too-many-ancestors, too-few-public-methods
 class NestedRequest(flask.Request):
     """Allow flask_restful.reqparse to inspect nested json"""

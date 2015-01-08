@@ -7,6 +7,7 @@ Set the schema for database models
 """
 import os
 import peewee
+import db.orm
 
 try:
     with open('password') as f:
@@ -24,5 +25,8 @@ config = {
     'password': password.rstrip('\n'),
 }
 
-database = peewee.PostgresqlDatabase(None)
 schema = 'rulzurkitchen'
+
+database = peewee.PostgresqlDatabase(None)
+database.compiler_class = db.orm.QueryCompiler
+

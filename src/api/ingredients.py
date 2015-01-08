@@ -57,18 +57,28 @@ class IngredientListAPI(flask_restful.Resource):
     def put(self):
         """Update multiple ingredients"""
         args = self.put_reqparse.parse_args()
-        ingredients = []
+        ingredients, ingredients_args = [], []
         nested_request = utils.helpers.NestedRequest()
+
         for ingredient in args.get('ingredients'):
             nested_request.nested_json = ingredient
             ingredient = (
                 self.put_reqparse_ingredient.parse_args(nested_request)
             )
-            ingredients += (
-                utils.helpers.optimized_update(
-                    db.models.Ingredient, ingredient
-                ).execute()
-            )
+            ingredients_args.append((ingredient.pop('id'), ingredient))
+
+        for ingredient_id, ingredient in ingredients_args:
+            try:
+                ingredients.append(
+                    db.models.Ingredient
+                    .update(returning=True, **ingredient)
+                    .where(db.models.Ingredient.id == ingredient_id)
+                    .dicts()
+                    .execute()
+                    .next()
+                )
+            except StopIteration:
+                pass
 
         return {'ingredients': ingredients}
 
@@ -89,15 +99,18 @@ class IngredientAPI(flask_restful.Resource):
     @db.connector.database.transaction()
     def put(self, ingredient_id):
         """Update the ingredient for ingredient_id"""
-        args = (
-            db.models.Ingredient, self.put_reqparse.parse_args(), ingredient_id
-        )
+        ingredient = self.put_reqparse.parse_args()
+
         try:
-            return {
-                'ingredient': (
-                    utils.helpers.optimized_update(*args).execute().next()
-                )
-            }
+            return (
+                db.models.Ingredient
+                .update(returning=True, **ingredient)
+                .where(db.models.Ingredient.id == ingredient_id)
+                .dicts()
+                .execute()
+                .next()
+            )
+
         except StopIteration:
             flask_restful.abort(404)
 

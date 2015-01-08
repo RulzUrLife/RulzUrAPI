@@ -44,7 +44,7 @@ def test_utensils_post_400(app):
         {'message': 'No utensil name provided'}
     )
 
-def test_utensils_put(app, monkeypatch):
+def test_utensils_put(app, returning_update_mocking, monkeypatch):
     """Test put /utensils/"""
     utensils = [{'id': 1, 'name': 'utensil_1'}, {'id': 2, 'name': 'utensil_2'}]
     utensils_update = [
@@ -52,36 +52,38 @@ def test_utensils_put(app, monkeypatch):
         {'id': 2, 'name': 'utensil_2', 'desc': 'description_utensil_2'},
     ]
 
-    def optimized_update_utensil_generator():
-        """Simple generator for optimized_update which returns utensils"""
+    def update_utensil_generator():
+        """Simple generator for update which returns utensils"""
         for utensil in utensils_update:
             yield utensil
 
-    mock_optimized_update = mock.Mock()
-    mock_optimized_update.return_value.execute.return_value = (
-        optimized_update_utensil_generator()
+    mock_returning_update = returning_update_mocking(
+        update_utensil_generator()
     )
+
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'db.models.Utensil.update', mock_returning_update
     )
     utensils_update_page = app.put(
         '/utensils/', data=json.dumps({'utensils': utensils}),
         content_type='application/json'
     )
 
+    calls = [mock.call(returning=True, **utensil) for utensil in utensils]
+
+    assert mock_returning_update.has_calls(calls)
     assert utensils_update_page.status_code == 200
     assert json.loads(utensils_update_page.data) == (
         {'utensils': utensils_update}
     )
 
-def test_utensils_put_cleanup_args(app, monkeypatch):
+def test_utensils_put_cleanup_args(app, monkeypatch, returning_update_mocking):
     """Test put /utensils/ arguments cleaner"""
     utensils = [{'id': 1, 'name': 'utensil_1', 'foo': 'bar'}]
 
-    mock_optimized_update_utensil = mock.Mock()
-    mock_optimized_update_utensil.return_value.execute.return_value = []
+    mock_returning_update = returning_update_mocking({})
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_utensil
+        'db.models.Utensil.update', mock_returning_update
     )
     app.put(
         '/utensils/', data=json.dumps({'utensils': utensils}),
@@ -90,18 +92,13 @@ def test_utensils_put_cleanup_args(app, monkeypatch):
     # get the first element of utensils and remove the "foo" entry
     utensil = utensils.pop()
     utensil.pop('foo')
-    assert mock_optimized_update_utensil.call_args[0][1] == utensil
+    utensil.pop('id')
+    mock_returning_update.assert_called_once_with(returning=True, **utensil)
 
 
-def test_utensils_put_400(app, monkeypatch):
+def test_utensils_put_400(app):
     """Test put /utensils/ with wrong parameters"""
     utensils = [{'id': 1, 'name': 'utensil_1'}, {'name':'utensil_2'}]
-
-    mock_optimized_update_utensil = mock.Mock()
-    mock_optimized_update_utensil.return_value.execute.return_value = []
-    monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_utensil
-    )
 
     utensils_update_page = app.put(
         '/utensils/', data=json.dumps({}), content_type='application/json'
@@ -144,41 +141,34 @@ def test_utensil_get_404(app, monkeypatch):
     utensil = app.get('/utensils/2')
     assert utensil.status_code == 404
 
-def test_utensil_put(app, monkeypatch):
+def test_utensil_put(app, returning_update_mocking, monkeypatch):
     """Test put /utensils/<id>"""
-    utensil = {'id': 1, 'name': 'utensil_1'}
+    utensil = {'name': 'utensil_1'}
     utensil_update = {
         'id': 1, 'name': 'utensil_1', 'desc': 'description_utensil_1'
     }
 
-    mock_optimized_update = mock.Mock()
-    (mock_optimized_update.return_value
-     .execute.return_value
-     .next.return_value) = utensil_update
+    mock_returning_update = returning_update_mocking(utensil_update)
 
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'db.models.Utensil.update', mock_returning_update
     )
     utensil_update_page = app.put(
         '/utensils/1', data=json.dumps(utensil),
         content_type='application/json'
     )
 
+    mock_returning_update.assert_called_once_with(returning=True, **utensil)
     assert utensil_update_page.status_code == 200
-    assert json.loads(utensil_update_page.data) == (
-        {'utensil': utensil_update}
-    )
+    assert json.loads(utensil_update_page.data) == utensil_update
 
-def test_utensil_put_cleanup_args(app, monkeypatch):
+def test_utensil_put_cleanup_args(app, returning_update_mocking, monkeypatch):
     """Test put /utensils/<id> arguments cleaner"""
     utensil = {'name': 'utensil_1', 'foo': 'bar'}
 
-    mock_optimized_update_utensil = mock.Mock()
-    (mock_optimized_update_utensil.return_value
-     .execute.return_value
-     .next.return_value) = []
+    mock_returning_update = returning_update_mocking({})
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_utensil
+        'db.models.Utensil.update', mock_returning_update
     )
     app.put(
         '/utensils/1', data=json.dumps(utensil),
@@ -186,20 +176,17 @@ def test_utensil_put_cleanup_args(app, monkeypatch):
     )
     # get the first element of utensil and remove the "foo" entry
     utensil.pop('foo')
-    assert mock_optimized_update_utensil.call_args[0][1] == utensil
+    mock_returning_update.assert_called_once_with(returning=True, **utensil)
 
 
-def test_utensil_put_404(app, monkeypatch):
+def test_utensil_put_404(app, returning_update_mocking, monkeypatch):
     """Test put /utensils/<id> with utensil not found"""
     utensil = {'id': 1, 'name': 'utensil_1'}
 
-    mock_optimized_update_utensil = mock.Mock()
-    (mock_optimized_update_utensil.return_value
-     .execute.return_value
-     .next.side_effect) = StopIteration()
+    mock_returning_update = returning_update_mocking(StopIteration)
 
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_utensil
+        'db.models.Utensil.update', mock_returning_update
     )
     utensil_update_page = app.put(
         '/utensils/1', data=json.dumps(utensil),

@@ -49,7 +49,7 @@ def test_ingredients_post_400(app):
         {'message': 'No ingredient name provided'}
     )
 
-def test_ingredients_put(app, monkeypatch):
+def test_ingredients_put(app, returning_update_mocking, monkeypatch):
     """Test put /ingredients/"""
     ingredients = [
         {'id': 1, 'name': 'ingredient_1'}, {'id': 2, 'name': 'ingredient_2'}
@@ -59,36 +59,42 @@ def test_ingredients_put(app, monkeypatch):
         {'id': 2, 'name': 'ingredient_2', 'desc': 'description_ingredient_2'},
     ]
 
-    def optimized_update_ingredient_generator():
-        """Simple generator for optimized_update which returns ingredients"""
+    def update_ingredient_generator():
+        """Simple generator for update which returns ingredients"""
         for ingredient in ingredients_update:
             yield ingredient
 
-    mock_optimized_update = mock.Mock()
-    mock_optimized_update.return_value.execute.return_value = (
-        optimized_update_ingredient_generator()
+    mock_returning_update = returning_update_mocking(
+        update_ingredient_generator()
     )
+
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'db.models.Ingredient.update', mock_returning_update
     )
     ingredients_update_page = app.put(
         '/ingredients/', data=json.dumps({'ingredients': ingredients}),
         content_type='application/json'
     )
 
+    calls = [
+        mock.call(returning=True, **ingredient) for ingredient in ingredients
+    ]
+
+    assert mock_returning_update.has_calls(calls)
     assert ingredients_update_page.status_code == 200
     assert json.loads(ingredients_update_page.data) == (
         {'ingredients': ingredients_update}
     )
 
-def test_ingredients_put_cleanup_args(app, monkeypatch):
+def test_ingredients_put_cleanup_args(
+        app, returning_update_mocking, monkeypatch):
     """Test put /ingredients/ arguments cleaner"""
     ingredients = [{'id': 1, 'name': 'ingredient_1', 'foo': 'bar'}]
 
-    mock_optimized_update_ingredient = mock.Mock()
-    mock_optimized_update_ingredient.return_value.execute.return_value = []
+    mock_returning_update = returning_update_mocking({})
+
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_ingredient
+        'db.models.Ingredient.update', mock_returning_update
     )
     app.put(
         '/ingredients/', data=json.dumps({'ingredients': ingredients}),
@@ -97,17 +103,13 @@ def test_ingredients_put_cleanup_args(app, monkeypatch):
     # get the first element of ingredients and remove the "foo" entry
     ingredient = ingredients.pop()
     ingredient.pop('foo')
-    assert mock_optimized_update_ingredient.call_args[0][1] == ingredient
+    ingredient.pop('id')
+    mock_returning_update.assert_called_once_with(returning=True, **ingredient)
 
-def test_ingredients_put_400(app, monkeypatch):
+
+def test_ingredients_put_400(app):
     """Test put /ingredients/ with wrong parameters"""
     ingredients = [{'id': 1, 'name': 'ingredient_1'}, {'name':'ingredient_2'}]
-
-    mock_optimized_update_ingredient = mock.Mock()
-    mock_optimized_update_ingredient.return_value.execute.return_value = []
-    monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_ingredient
-    )
 
     ingredients_update_page = app.put(
         '/ingredients/', data=json.dumps({}), content_type='application/json'
@@ -149,42 +151,36 @@ def test_ingredient_get_404(app, monkeypatch):
     ingredient = app.get('/ingredients/2')
     assert ingredient.status_code == 404
 
-def test_ingredient_put(app, monkeypatch):
+def test_ingredient_put(app, returning_update_mocking, monkeypatch):
     """Test put /ingredients/<id>"""
-    ingredient = {'id': 1, 'name': 'ingredient_1'}
+    ingredient = {'name': 'ingredient_1'}
     ingredient_update = {
         'id': 1, 'name': 'ingredient_1', 'desc': 'description_ingredient_1'
     }
 
-    mock_optimized_update = mock.Mock()
-    (mock_optimized_update.return_value
-     .execute.return_value
-     .next.return_value) = ingredient_update
+    mock_returning_update = returning_update_mocking(ingredient_update)
 
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update
+        'db.models.Ingredient.update', mock_returning_update
     )
     ingredient_update_page = app.put(
         '/ingredients/1', data=json.dumps(ingredient),
         content_type='application/json'
     )
 
+    mock_returning_update.assert_called_once_with(returning=True, **ingredient)
     assert ingredient_update_page.status_code == 200
-    assert json.loads(ingredient_update_page.data) == (
-        {'ingredient': ingredient_update}
-    )
+    assert json.loads(ingredient_update_page.data) == ingredient_update
 
-def test_ingredient_put_404(app, monkeypatch):
+
+def test_ingredient_put_404(app, returning_update_mocking, monkeypatch):
     """Test put /ingredients/<id> with ingredient not found"""
     ingredient = {'id': 1, 'name': 'ingredient_1'}
 
-    mock_optimized_update_ingredient = mock.Mock()
-    (mock_optimized_update_ingredient.return_value
-     .execute.return_value
-     .next.side_effect) = StopIteration()
+    mock_returning_update = returning_update_mocking(StopIteration)
 
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_ingredient
+        'db.models.Ingredient.update', mock_returning_update
     )
     ingredient_update_page = app.put(
         '/ingredients/1', data=json.dumps(ingredient),
@@ -193,16 +189,15 @@ def test_ingredient_put_404(app, monkeypatch):
 
     assert ingredient_update_page.status_code == 404
 
-def test_ingredient_put_cleanup_args(app, monkeypatch):
+def test_ingredient_put_cleanup_args(
+        app, monkeypatch, returning_update_mocking):
     """Test put /ingredients/<id> arguments cleaner"""
     ingredient = {'name': 'ingredient_1', 'foo': 'bar'}
 
-    mock_optimized_update_ingredient = mock.Mock()
-    (mock_optimized_update_ingredient.return_value
-     .execute.return_value
-     .next.return_value) = []
+    mock_returning_update = returning_update_mocking({})
+
     monkeypatch.setattr(
-        'utils.helpers.optimized_update', mock_optimized_update_ingredient
+        'db.models.Ingredient.update', mock_returning_update
     )
     app.put(
         '/ingredients/1', data=json.dumps(ingredient),
@@ -210,7 +205,7 @@ def test_ingredient_put_cleanup_args(app, monkeypatch):
     )
     # get the first element of ingredient and remove the "foo" entry
     ingredient.pop('foo')
-    assert mock_optimized_update_ingredient.call_args[0][1] == ingredient
+    mock_returning_update.assert_called_once_with(returning=True, **ingredient)
 
 
 def test_ingredient_get_recipes(app, monkeypatch, recipe_select_mocking):

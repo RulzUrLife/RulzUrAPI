@@ -8,7 +8,9 @@ import peewee
 import playhouse.postgres_ext
 
 import db.connector
+import db.orm
 import db.enum
+
 
 #pylint: disable=too-few-public-methods, no-init, old-style-class
 class BaseModel(peewee.Model):
@@ -17,6 +19,13 @@ class BaseModel(peewee.Model):
     def to_dict(self):
         """Return the private attribute _data"""
         return self._data
+
+    @classmethod
+    def update(cls, returning=False, **update):
+        # pylint: disable=no-member
+        fdict = dict((cls._meta.fields[f], v) for f, v in update.items())
+        return db.orm.UpdateQuery(cls, update=fdict, returning=returning)
+
 
     class Meta:
         """Define the common database configuration for the models
@@ -33,7 +42,6 @@ class Ingredient(BaseModel):
     """database's ingredient table"""
     id = peewee.PrimaryKeyField()
     name = peewee.CharField()
-
 
 #pylint: disable=too-few-public-methods
 class Utensil(BaseModel):
