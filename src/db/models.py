@@ -11,7 +11,7 @@ import db.connector
 import db.orm
 
 
-#pylint: disable=too-few-public-methods, no-init, old-style-class
+#pylint: disable=too-few-public-methods
 class BaseModel(peewee.Model):
     """Define the common model configuration"""
 
@@ -41,7 +41,7 @@ class BaseModel(peewee.Model):
         """
         return db.orm.InsertQuery(cls, unique=unique_field, rows=rows)
 
-    class Meta:
+    class Meta(object):
         """Define the common database configuration for the models
 
         All the configuration is loaded from db.connector,
@@ -109,8 +109,7 @@ class RecipeIngredients(BaseModel):
     quantity = peewee.IntegerField()
     measurement = db.orm.EnumField(choices=['L', 'g', 'oz', 'spoon'])
 
-    #pylint: disable=no-init, old-style-class
-    class Meta:
+    class Meta(object):
         """ManyToMany relationship for recipe_ingredients
 
         primary_key need to be specified here
@@ -136,8 +135,7 @@ class RecipeUtensils(BaseModel):
         db_column='fk_utensil'
     )
 
-    #pylint: disable=no-init, old-style-class
-    class Meta:
+    class Meta(object):
         """ManyToMany relationship for recipe_utensils
 
         primary_key need to be specified here
