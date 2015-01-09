@@ -1,0 +1,12 @@
+{
+  "utensils":[
+    {
+      "id": 1,
+      "name": "utensil_1_updated"
+    },
+    {
+      "id": 2,
+      "name": "utensil_2_updated"
+    }
+  ]
+}

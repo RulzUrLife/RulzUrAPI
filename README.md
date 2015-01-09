@@ -39,3 +39,15 @@ to run tests, run the previous command then inside the container run: `py.test`
 
 and for the lint tool: `source misc/pylint_files; pylint $PYLINT_FILES`
 
+# Working on the REST API
+
+It can be easier to work on the API by using some fixture, you can use the ones
+provided in the [misc](./misc) folder.
+
+You can use [jq](http://stedolan.github.io/jq/manual/) in addition,
+for requesting on the returned json. Here is a cli exemple of how to use is:
+
+```bash
+curl -X POST -H "Content-Type: application/json" -s -d @misc/post_recipe_1.json localhost:5000/recipes/ | jq '.'
+```
+
