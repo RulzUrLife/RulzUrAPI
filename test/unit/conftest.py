@@ -47,6 +47,8 @@ def fake_model_factory():
         """
         def __init__(self, data):
             self.data = data
+            for key, value in data.items():
+                setattr(self, key, value)
 
         def to_dict(self):
             """Clone the to_dict function from db.models.BaseModel"""

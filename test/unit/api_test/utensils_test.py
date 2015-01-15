@@ -19,29 +19,35 @@ def test_utensils_list(app, monkeypatch):
     mock_utensil_select.assert_called_once_with()
     assert json.loads(utensils_page.data) == {'utensils': utensils}
 
-def test_utensils_post(app, monkeypatch):
+def test_utensils_post(app, monkeypatch, fake_model_factory):
     """Test post /utensils/"""
     utensil = {'name': 'utensil_1'}
+    utensil_mock = {'id': 1, 'name': 'utensil_1'}
 
     mock_utensil_create = mock.Mock()
-    mock_utensil_create.return_value.to_dict.return_value = utensil
+    mock_utensil_create.return_value = fake_model_factory(utensil_mock)
     monkeypatch.setattr('db.models.Utensil.create', mock_utensil_create)
     utensils_create_page = app.post(
         '/utensils/', data=json.dumps(utensil), content_type='application/json'
     )
 
     assert utensils_create_page.status_code == 201
-    assert json.loads(utensils_create_page.data) == {'utensil': utensil}
+    assert json.loads(utensils_create_page.data) == {'utensil': utensil_mock}
     mock_utensil_create.assert_called_once_with(**utensil)
 
 def test_utensils_post_400(app):
     """Test post /utensils/ with wrong parameters"""
     utensil = {}
 
-    utensils_create_page = app.post('/utensils/', data=json.dumps(utensil))
+    utensils_create_page = app.post(
+        '/utensils/', data=json.dumps(utensil), content_type='application/json'
+    )
     assert utensils_create_page.status_code == 400
     assert json.loads(utensils_create_page.data) == (
-        {'message': 'No utensil name provided'}
+        {
+            'message': 'Request malformed',
+            'errors': {'name': ['Missing data for required field.']}
+        }
     )
 
 def test_utensils_put(app, returning_update_mocking, monkeypatch):
@@ -105,7 +111,10 @@ def test_utensils_put_400(app):
     )
     assert utensils_update_page.status_code == 400
     assert json.loads(utensils_update_page.data) == (
-        {'message': 'Missing required parameter utensils in the JSON body'}
+        {
+            'message': 'Request malformed',
+            'errors': {'utensils': ['Missing data for required field.']}
+        }
     )
 
     utensils_update_page = app.put(
@@ -114,13 +123,18 @@ def test_utensils_put_400(app):
     )
     assert utensils_update_page.status_code == 400
     assert json.loads(utensils_update_page.data) == (
-        {'message': 'id field not provided for all values'}
+        {
+            'message': 'Request malformed',
+            'errors': {
+                'utensils': {'id': ['Missing data for required field.']}
+            }
+        }
     )
 
 def test_utensil_get(app, monkeypatch, fake_model_factory):
     """Test /utensils/<id>"""
 
-    utensil = {'utensil_1': 'utensil_1_content'}
+    utensil = {'id': 1, 'name': 'utensil_1'}
 
     mock_utensil_get = mock.Mock(return_value=fake_model_factory(utensil))
     monkeypatch.setattr('db.models.Utensil.get', mock_utensil_get)

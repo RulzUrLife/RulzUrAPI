@@ -2,9 +2,11 @@
 
 import flask_restful
 import flask_restful.reqparse
+import flask
 import db.models
 import db.connector
 import utils.helpers
+import utils.schemas
 
 import peewee
 
@@ -18,55 +20,37 @@ def get_utensil(utensil_id):
 class UtensilListAPI(flask_restful.Resource):
     """/utensils/ endpoint"""
 
-    def __init__(self):
-        self.post_reqparse = flask_restful.reqparse.RequestParser()
-        self.post_reqparse.add_argument(
-            'name', type=str, required=True,
-            help='No utensil name provided', location='json'
-        )
-
-        self.put_reqparse = flask_restful.reqparse.RequestParser()
-        self.put_reqparse.add_argument(
-            'utensils', type=list, required=True, location='json'
-        )
-
-        self.put_reqparse_utensil = flask_restful.reqparse.RequestParser()
-        self.put_reqparse_utensil.add_argument(
-            'id', type=int, required=True, location='json',
-            help='id field not provided for all values'
-        )
-        self.put_reqparse_utensil.add_argument(
-            'name', type=str, location='json'
-        )
-
-
-        super(UtensilListAPI, self).__init__()
-
     # pylint: disable=no-self-use
     def get(self):
         """List all utensils"""
         return {'utensils': list(db.models.Utensil.select().dicts())}
 
+    @db.connector.database.transaction()
     def post(self):
         """Create an utensil"""
-        args = self.post_reqparse.parse_args()
-        utensil = db.models.Utensil.create(name=args.get('name'))
-        return {'utensil': utensil.to_dict()}, 201
+        utensil = utils.helpers.parse_args(
+            utils.schemas.post_utensils_parser, flask.request.json
+        )
+
+        try:
+            utensil = db.models.Utensil.create(**utensil)
+        except peewee.IntegrityError:
+            flask_restful.abort(409, message='Utensil already exists')
+
+        return (
+            {'utensil': utils.schemas.utensil_parser.dump(utensil).data}, 201
+        )
 
     @db.connector.database.transaction()
     def put(self):
         """Update multiple utensils"""
-        args = self.put_reqparse.parse_args()
-        utensils, utensils_args = [], []
-        nested_request = utils.helpers.NestedRequest()
-        # first check arguments
-        for utensil in args.get('utensils'):
-            nested_request.nested_json = utensil
-            utensil = self.put_reqparse_utensil.parse_args(nested_request)
-            utensils_args.append((utensil.pop('id'), utensil))
+        utensils = []
+        data = utils.helpers.parse_args(
+            utils.schemas.put_utensils_parser, flask.request.json
+        )
 
-        # then run the sql commands
-        for utensil_id, utensil in utensils_args:
+        for utensil in data['utensils']:
+            utensil_id = utensil.pop('id')
             try:
                 utensils.append(db.models.Utensil
                                 .update(returning=True, **utensil)
@@ -82,20 +66,22 @@ class UtensilListAPI(flask_restful.Resource):
 class UtensilAPI(flask_restful.Resource):
     """/utensils/{utensil_id}/ endpoint"""
 
-    def __init__(self):
-        self.put_reqparse = flask_restful.reqparse.RequestParser()
-        self.put_reqparse.add_argument('name', type=str, location='json')
-        super(UtensilAPI, self).__init__()
-
     # pylint: disable=no-self-use
     def get(self, utensil_id):
         """Provide the utensil for utensil_id"""
-        return {'utensil': get_utensil(utensil_id).to_dict()}
+        return {
+            'utensil': utils.schemas.utensil_parser.dump(
+                get_utensil(utensil_id)
+            ).data
+        }
 
     @db.connector.database.transaction()
     def put(self, utensil_id):
         """Update the utensil for utensil_id"""
-        utensil = self.put_reqparse.parse_args()
+
+        utensil = utils.helpers.parse_args(
+            utils.schemas.utensil_parser, flask.request.json
+        )
 
         try:
             return (db.models.Utensil

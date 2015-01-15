@@ -11,6 +11,7 @@ import os
 
 import flask
 import flask_restful
+import utils.helpers
 
 import api.recipes
 import api.utensils
@@ -22,6 +23,11 @@ def init_app():
 
     app = flask.Flask(__name__)
     public_api = flask_restful.Api(app)
+
+    # Register error handlers
+    app.register_error_handler(
+        utils.helpers.APIException, utils.helpers.jsonify_api_exception
+    )
 
     # Utensils endpoints
     public_api.add_resource(
