@@ -4,6 +4,15 @@ import mock
 import types
 
 @pytest.fixture
+def error_missing_name():
+    return (
+        {
+            'message': 'Request malformed',
+            'errors': {'name': ['Missing data for required field.']}
+        }
+    )
+
+@pytest.fixture
 def recipe_select_mocking(monkeypatch):
     """Simple factory for creating a mock_recipe_select"""
 

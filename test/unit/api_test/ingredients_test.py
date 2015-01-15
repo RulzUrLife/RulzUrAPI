@@ -19,12 +19,13 @@ def test_ingredients_list(app, monkeypatch):
     mock_ingredient_select.assert_called_once_with()
     assert json.loads(ingredients_page.data) == {'ingredients': ingredients}
 
-def test_ingredients_post(app, monkeypatch):
+def test_ingredients_post(app, monkeypatch, fake_model_factory):
     """Test post /ingredients/"""
     ingredient = {'name': 'ingredient_1'}
+    ingredient_mock = {'id': 1, 'name': 'ingredient_1'}
 
     mock_ingredient_create = mock.Mock()
-    mock_ingredient_create.return_value.to_dict.return_value = ingredient
+    mock_ingredient_create.return_value = fake_model_factory(ingredient_mock)
     monkeypatch.setattr('db.models.Ingredient.create', mock_ingredient_create)
     ingredients_create_page = app.post(
         '/ingredients/', data=json.dumps(ingredient),
@@ -33,21 +34,20 @@ def test_ingredients_post(app, monkeypatch):
 
     assert ingredients_create_page.status_code == 201
     assert json.loads(ingredients_create_page.data) == {
-        'ingredient': ingredient
+        'ingredient': ingredient_mock
     }
     mock_ingredient_create.assert_called_once_with(**ingredient)
 
-def test_ingredients_post_400(app):
+def test_ingredients_post_400(app, error_missing_name):
     """Test post /ingredients/ with wrong parameters"""
     ingredient = {}
 
     ingredients_create_page = app.post(
-        '/ingredients/', data=json.dumps(ingredient)
+        '/ingredients/', data=json.dumps(ingredient),
+        content_type='application/json'
     )
     assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == (
-        {'message': 'No ingredient name provided'}
-    )
+    assert json.loads(ingredients_create_page.data) == error_missing_name
 
 def test_ingredients_put(app, returning_update_mocking, monkeypatch):
     """Test put /ingredients/"""
@@ -116,7 +116,10 @@ def test_ingredients_put_400(app):
     )
     assert ingredients_update_page.status_code == 400
     assert json.loads(ingredients_update_page.data) == (
-        {'message': 'Missing required parameter ingredients in the JSON body'}
+        {
+            'message': 'Request malformed',
+            'errors': {'ingredients': ['Missing data for required field.']}
+        }
     )
 
     ingredients_update_page = app.put(
@@ -125,13 +128,18 @@ def test_ingredients_put_400(app):
     )
     assert ingredients_update_page.status_code == 400
     assert json.loads(ingredients_update_page.data) == (
-        {'message': 'id field not provided for all values'}
+        {
+            'message': 'Request malformed',
+            'errors': {
+                'ingredients': {'id': ['Missing data for required field.']}
+            }
+        }
     )
 
 def test_ingredient_get(app, monkeypatch, fake_model_factory):
     """Test /ingredients/<id>"""
 
-    ingredient = {'ingredient_1': 'ingredient_1_content'}
+    ingredient = {'id': 1, 'name': 'ingredient_1'}
 
     mock_ingredient_get = mock.Mock(return_value=fake_model_factory(ingredient))
     monkeypatch.setattr('db.models.Ingredient.get', mock_ingredient_get)

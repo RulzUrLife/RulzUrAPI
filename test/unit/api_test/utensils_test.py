@@ -35,7 +35,7 @@ def test_utensils_post(app, monkeypatch, fake_model_factory):
     assert json.loads(utensils_create_page.data) == {'utensil': utensil_mock}
     mock_utensil_create.assert_called_once_with(**utensil)
 
-def test_utensils_post_400(app):
+def test_utensils_post_400(app, error_missing_name):
     """Test post /utensils/ with wrong parameters"""
     utensil = {}
 
@@ -43,12 +43,7 @@ def test_utensils_post_400(app):
         '/utensils/', data=json.dumps(utensil), content_type='application/json'
     )
     assert utensils_create_page.status_code == 400
-    assert json.loads(utensils_create_page.data) == (
-        {
-            'message': 'Request malformed',
-            'errors': {'name': ['Missing data for required field.']}
-        }
-    )
+    assert json.loads(utensils_create_page.data) == error_missing_name
 
 def test_utensils_put(app, returning_update_mocking, monkeypatch):
     """Test put /utensils/"""

@@ -1,7 +1,9 @@
 """API ingredients entrypoints"""
+import flask
 import flask_restful
 import db.models
 import utils.helpers
+import utils.schemas
 
 import peewee
 
@@ -18,30 +20,6 @@ def get_ingredient(ingredient_id):
 class IngredientListAPI(flask_restful.Resource):
     """/ingredients/ endpoint"""
 
-    def __init__(self):
-        self.post_reqparse = flask_restful.reqparse.RequestParser()
-        self.post_reqparse.add_argument(
-            'name', type=str, required=True,
-            help='No ingredient name provided', location='json'
-        )
-
-        self.put_reqparse = flask_restful.reqparse.RequestParser()
-        self.put_reqparse.add_argument(
-            'ingredients', type=list, required=True, location='json'
-        )
-
-        self.put_reqparse_ingredient = flask_restful.reqparse.RequestParser()
-        self.put_reqparse_ingredient.add_argument(
-            'id', type=int, required=True, location='json',
-            help='id field not provided for all values'
-        )
-        self.put_reqparse_ingredient.add_argument(
-            'name', type=str, location='json'
-        )
-
-        super(IngredientListAPI, self).__init__()
-
-
     # pylint: disable=no-self-use
     def get(self):
         """List all ingredients"""
@@ -49,25 +27,30 @@ class IngredientListAPI(flask_restful.Resource):
 
     def post(self):
         """Create an ingredient"""
-        args = self.post_reqparse.parse_args()
-        ingredient = db.models.Ingredient.create(name=args.get('name'))
-        return {'ingredient': ingredient.to_dict()}, 201
+        ingredient = utils.helpers.parse_args(
+            utils.schemas.post_ingredients_parser, flask.request.json
+        )
+
+        try:
+            ingredient = db.models.Ingredient.create(**ingredient)
+        except peewee.IntegrityError:
+            flask_restful.abort(409, message='Ingredient already exists')
+
+        ingredient = utils.schemas.ingredient_parser.dump(ingredient).data
+        return (
+            {'ingredient': ingredient}, 201
+        )
 
     @db.connector.database.transaction()
     def put(self):
         """Update multiple ingredients"""
-        args = self.put_reqparse.parse_args()
-        ingredients, ingredients_args = [], []
-        nested_request = utils.helpers.NestedRequest()
+        ingredients = []
+        data = utils.helpers.parse_args(
+            utils.schemas.put_ingredients_parser, flask.request.json
+        )
 
-        for ingredient in args.get('ingredients'):
-            nested_request.nested_json = ingredient
-            ingredient = (
-                self.put_reqparse_ingredient.parse_args(nested_request)
-            )
-            ingredients_args.append((ingredient.pop('id'), ingredient))
-
-        for ingredient_id, ingredient in ingredients_args:
+        for ingredient in data['ingredients']:
+            ingredient_id = ingredient.pop('id')
             try:
                 ingredients.append(
                     db.models.Ingredient
@@ -86,20 +69,21 @@ class IngredientListAPI(flask_restful.Resource):
 class IngredientAPI(flask_restful.Resource):
     """/ingredients/{ingredient_id}/ endpoint"""
 
-    def __init__(self):
-        self.put_reqparse = flask_restful.reqparse.RequestParser()
-        self.put_reqparse.add_argument('name', type=str, location='json')
-        super(IngredientAPI, self).__init__()
-
     # pylint: disable=no-self-use
     def get(self, ingredient_id):
         """Provide the ingredient for ingredient_id"""
-        return {'ingredient': get_ingredient(ingredient_id).to_dict()}
+        return {
+            'ingredient': utils.schemas.ingredient_parser.dump(
+                get_ingredient(ingredient_id)
+            ).data
+        }
 
     @db.connector.database.transaction()
     def put(self, ingredient_id):
         """Update the ingredient for ingredient_id"""
-        ingredient = self.put_reqparse.parse_args()
+        ingredient = utils.helpers.parse_args(
+            utils.schemas.ingredient_parser, flask.request.json
+        )
 
         try:
             return (
