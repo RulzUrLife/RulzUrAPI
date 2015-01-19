@@ -1,4 +1,4 @@
 ipdb
 pytest
-pylint
+pylint==1.4.1
 mock

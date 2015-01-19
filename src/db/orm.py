@@ -26,6 +26,7 @@ class EnumField(peewee.Field):
         return peewee.SQL("e_%s" % self.name)
 
 
+# pylint: disable=abstract-method
 class InsertQuery(peewee.InsertQuery):
     """Overrides peewee.InsertQuery to add a unique feature"""
 
@@ -43,7 +44,7 @@ class InsertQuery(peewee.InsertQuery):
         if self._rows and len(self._rows):
             return self.database.rows_affected(self._execute())
 
-# pylint: disable=too-few-public-methods, protected-access
+# pylint: disable=too-few-public-methods, protected-access, abstract-method
 class UpdateQuery(peewee.UpdateQuery):
     """Overrides peewee.UpdateQuery to add a returning feature"""
 

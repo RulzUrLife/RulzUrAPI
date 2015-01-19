@@ -1,6 +1,7 @@
 """API recipes entrypoints"""
 
 import flask_restful
+import flask
 
 import db.connector
 import db.models
@@ -21,48 +22,8 @@ class RecipeListAPI(flask_restful.Resource):
     """/recipes/ endpoint"""
 
     def __init__(self):
-        def init_reqparse(element):
-            """Init request parser for put and post methods"""
-
-            put_reqparse = flask_restful.reqparse.RequestParser()
-            post_reqparse = flask_restful.reqparse.RequestParser()
-
-            for name, kwargs in element.items():
-                post_reqparse.add_argument(
-                    name, required=True, location='json', **kwargs
-                )
-                put_reqparse.add_argument(
-                    name, location='json', **kwargs
-                )
-            return post_reqparse, put_reqparse
-
-        reqparse = self.reqparse = {
-            'post': None, 'put': None, 'put_recipe': None,
-            'post_ingredient': None, 'put_ingredient': None,
-            'post_utensil': None, 'put_utensil': None
-        }
-
-        reqparse['post'], reqparse['put_recipe'] = (
-            init_reqparse(utils.helpers.reqparse['recipe'])
-        )
-        reqparse['post_ingredient'], reqparse['put_ingredient'] = (
-            init_reqparse(utils.helpers.reqparse['ingredient'])
-        )
-        reqparse['post_utensil'], reqparse['put_utensil'] = (
-            init_reqparse(utils.helpers.reqparse['utensil'])
-        )
-
-        reqparse['put_recipe'].add_argument(
-            'id', type=int, required=True, location='json',
-            help='id field not provided for all recipes'
-        )
-        reqparse['put'] = flask_restful.reqparse.RequestParser()
-        reqparse['put'].add_argument(
-            'recipes', type=list, required=True, location='json'
-        )
         self.query_compiler = peewee.QueryCompiler()
         super(RecipeListAPI, self).__init__()
-
 
     # pylint: disable=no-self-use
     def get(self):
@@ -74,24 +35,18 @@ class RecipeListAPI(flask_restful.Resource):
         """Create a recipe"""
 
         # pylint: disable=protected-access
-        def parse_list(model, json_list, reqparse_fn, insert_fn):
+        def parse_list(model, elements, insert_fn):
             """Parse a model list and insert it in the dedicated table"""
 
-            nested_request = utils.helpers.NestedRequest()
-            elements = []
+            if not len(elements):
+                return []
+
             model_entity, _ = self.query_compiler._parse_entity(
                 model._as_entity(), None, None
             )
             lock_request = (
                 'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE' % model_entity
             )
-
-            for element in json_list:
-                nested_request.nested_json = element
-                elements.append(reqparse_fn.parse_args(nested_request))
-
-            if not len(elements):
-                return []
 
             #protect the database table against race condition
             db.connector.database.execute_sql(lock_request)
@@ -144,42 +99,40 @@ class RecipeListAPI(flask_restful.Resource):
             query = (db.models.Utensil
                      .select()
                      .where(db.models.Utensil.name << list(names)))
-            return [{'utensil': utensil} for utensil in query]
+            return list(query)
 
-        recipe = self.reqparse['post'].parse_args()
+        recipe = utils.helpers.parse_args(
+            utils.schemas.post_recipes_parser, flask.request.json
+        )
+
         count = db.models.Recipe.select().where(
             db.models.Recipe.name == recipe.get('name')
         ).count()
 
         if count:
-            flask_restful.abort(409, message='recipe already exists')
+            flask_restful.abort(409, message='Recipe already exists.')
 
         ingredients = parse_list(
-            db.models.Ingredient, recipe.pop('ingredients'),
-            self.reqparse['post_ingredient'], insert_ingredients
+            db.models.Ingredient, recipe.pop('ingredients'), insert_ingredients
         )
 
         utensils = parse_list(
-            db.models.Utensil, recipe.pop('utensils'),
-            self.reqparse['post_utensil'], insert_utensils
+            db.models.Utensil, recipe.pop('utensils'), insert_utensils
         )
 
         recipe = db.models.Recipe.create(**recipe)
         recipe.ingredients = ingredients
         recipe.utensils = utensils
 
+        db.models.RecipeUtensils.insert_many([
+            {'recipe': recipe, 'utensil': utensil} for utensil in utensils
+        ]).execute()
+
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
-
-        for utensil in utensils:
-            utensil['recipe'] = recipe
-
-        db.models.RecipeUtensils.insert_many(utensils).execute()
         db.models.RecipeIngredients.insert_many(ingredients).execute()
 
-        return flask_restful.marshal(
-            recipe.to_dict(), utils.helpers.recipe_marshal, envelope='recipe'
-        ), 201
+        return {'recipe': utils.schemas.recipe_parser.dump(recipe).data}, 201
 
 
 # pylint: disable=too-few-public-methods

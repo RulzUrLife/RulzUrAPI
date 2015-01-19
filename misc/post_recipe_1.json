@@ -13,6 +13,6 @@
     {"name": "ingredient_10", "measurement": "g", "quantity": 2},
     {"name": "ingredient_11", "measurement": "oz", "quantity": 3}
   ],
-  "type": "starter"
+  "category": "starter"
 }
 

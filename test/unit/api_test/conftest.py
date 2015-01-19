@@ -5,6 +5,7 @@ import types
 
 @pytest.fixture
 def error_missing_name():
+    """Simple fixture for missing name error"""
     return (
         {
             'message': 'Request malformed',

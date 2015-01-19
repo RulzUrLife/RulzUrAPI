@@ -75,7 +75,7 @@ class Recipe(BaseModel):
         '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45', '45/60',
         '60/75', '75/90', '90/120', '120/150'])
     people = peewee.IntegerField()
-    type = db.orm.EnumField(choices=['starter', 'main', 'dessert'])
+    category = db.orm.EnumField(choices=['starter', 'main', 'dessert'])
 
 
     #Foreign keys linking
