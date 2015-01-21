@@ -3,6 +3,7 @@ import json
 import peewee
 import mock
 import db.models
+import test.utils
 
 def test_utensils_list(app, monkeypatch):
     """Test /utensils/"""
@@ -16,7 +17,9 @@ def test_utensils_list(app, monkeypatch):
     mock_utensil_select.return_value.dicts.return_value = utensils
     monkeypatch.setattr('db.models.Utensil.select', mock_utensil_select)
     utensils_page = app.get('/utensils/')
-    mock_utensil_select.assert_called_once_with()
+
+    assert mock_utensil_select.call_count == 1
+    assert mock_utensil_select.call_args == mock.call()
     assert json.loads(utensils_page.data) == {'utensils': utensils}
 
 def test_utensils_post(app, monkeypatch, fake_model_factory):
@@ -33,7 +36,9 @@ def test_utensils_post(app, monkeypatch, fake_model_factory):
 
     assert utensils_create_page.status_code == 201
     assert json.loads(utensils_create_page.data) == {'utensil': utensil_mock}
-    mock_utensil_create.assert_called_once_with(**utensil)
+
+    assert mock_utensil_create.call_count == 1
+    assert mock_utensil_create.call_args == mock.call(**utensil)
 
 def test_utensils_post_400(app, error_missing_name):
     """Test post /utensils/ with wrong parameters"""
@@ -94,7 +99,10 @@ def test_utensils_put_cleanup_args(app, monkeypatch, returning_update_mocking):
     utensil = utensils.pop()
     utensil.pop('foo')
     utensil.pop('id')
-    mock_returning_update.assert_called_once_with(returning=True, **utensil)
+    assert mock_returning_update.call_count == 1
+    assert mock_returning_update.call_args == mock.call(
+        returning=True, **utensil
+    )
 
 
 def test_utensils_put_400(app):
@@ -134,7 +142,10 @@ def test_utensil_get(app, monkeypatch, fake_model_factory):
     mock_utensil_get = mock.Mock(return_value=fake_model_factory(utensil))
     monkeypatch.setattr('db.models.Utensil.get', mock_utensil_get)
     utensil_page = app.get('/utensils/1')
-    mock_utensil_get.assert_called_once_with(
+
+    assert mock_utensil_get.call_count == 1
+    assert test.utils.expression_assert(
+        mock_utensil_get,
         peewee.Expression(db.models.Utensil.id, '=', 1)
     )
     assert json.loads(utensil_page.data) == {'utensil': utensil}
@@ -167,7 +178,10 @@ def test_utensil_put(app, returning_update_mocking, monkeypatch):
         content_type='application/json'
     )
 
-    mock_returning_update.assert_called_once_with(returning=True, **utensil)
+    assert mock_returning_update.call_count == 1
+    assert mock_returning_update.call_args == mock.call(
+        returning=True, **utensil
+    )
     assert utensil_update_page.status_code == 200
     assert json.loads(utensil_update_page.data) == utensil_update
 
@@ -185,7 +199,10 @@ def test_utensil_put_cleanup_args(app, returning_update_mocking, monkeypatch):
     )
     # get the first element of utensil and remove the "foo" entry
     utensil.pop('foo')
-    mock_returning_update.assert_called_once_with(returning=True, **utensil)
+    assert mock_returning_update.call_count == 1
+    assert mock_returning_update.call_args == mock.call(
+        returning=True, **utensil
+    )
 
 
 def test_utensil_put_404(app, returning_update_mocking, monkeypatch):
@@ -215,19 +232,22 @@ def test_utensil_get_recipes(app, monkeypatch, recipe_select_mocking):
     mock_recipe_select = recipe_select_mocking(recipes)
     recipes_page = app.get('/utensils/1/recipes')
 
-    mock_utensil_get.assert_called_once_with(
-        peewee.Expression(db.models.Utensil.id, '=', 1)
+    assert mock_utensil_get.call_count == 1
+    assert test.utils.expression_assert(
+        mock_utensil_get, peewee.Expression(db.models.Utensil.id, '=', 1)
     )
 
-    mock_recipe_select.assert_called_once_with()
-    mock_recipe_select.return_value.join.assert_called_once_with(
-        db.models.RecipeUtensils
-    )
-    (mock_recipe_select.return_value
-     .join.return_value
-     .where.assert_called_once_with(
-         peewee.Expression(db.models.RecipeUtensils.utensil, '=', 1)
-     )
+    assert mock_recipe_select.call_count == 1
+    assert mock_recipe_select.call_args == mock.call()
+
+    join = mock_recipe_select.return_value.join
+    assert join.call_count == 1
+    assert join.call_args == mock.call(db.models.RecipeUtensils)
+
+    where = join.return_value.where
+    assert where.call_count == 1
+    assert test.utils.expression_assert(
+        where, peewee.Expression(db.models.RecipeUtensils.utensil, '=', 1)
     )
 
     assert json.loads(recipes_page.data) == {'recipes': recipes}

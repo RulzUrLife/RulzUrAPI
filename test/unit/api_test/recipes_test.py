@@ -3,6 +3,7 @@ import json
 import peewee
 import mock
 import db.models
+import test.utils
 
 def test_recipes_list(app, monkeypatch):
     """Test /recipes/"""
@@ -27,8 +28,10 @@ def test_recipe_get(app, monkeypatch, fake_model_factory):
     mock_recipe_get = mock.Mock(return_value=fake_model_factory(recipe))
     monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
     recipe_page = app.get('/recipes/1')
-    mock_recipe_get.assert_called_once_with(
-        peewee.Expression(db.models.Ingredient.id, '=', 1)
+
+    assert mock_recipe_get.call_count == 1
+    assert test.utils.expression_assert(
+        mock_recipe_get, peewee.Expression(db.models.Ingredient.id, '=', 1)
     )
     assert json.loads(recipe_page.data) == {'recipe': recipe}
 
@@ -64,24 +67,27 @@ def test_recipe_get_ingredients(app, monkeypatch):
 
     ingredients_page = app.get('/recipes/1/ingredients')
 
-    mock_recipe_get.assert_called_once_with(
-        peewee.Expression(db.models.Recipe.id, '=', 1)
+
+    assert mock_recipe_get.call_count == 1
+    assert test.utils.expression_assert(
+        mock_recipe_get, peewee.Expression(db.models.Recipe.id, '=', 1)
     )
-    mock_recipe_ingredients_select.assert_called_once_with(
+
+    assert mock_recipe_ingredients_select.call_count == 1
+    assert mock_recipe_ingredients_select.call_args == mock.call(
         db.models.RecipeIngredients.quantity,
         db.models.RecipeIngredients.measurement,
         db.models.Ingredient
     )
 
-    mock_recipe_ingredients_select.return_value.join.assert_called_once_with(
-        db.models.Ingredient
-    )
+    join = mock_recipe_ingredients_select.return_value.join
+    assert join.call_count == 1
+    assert join.call_args == mock.call(db.models.Ingredient)
 
-    (mock_recipe_ingredients_select.return_value
-     .join.return_value
-     .where.assert_called_once_with(
-         peewee.Expression(db.models.RecipeIngredients.recipe, '=', 1)
-     )
+    where = join.return_value.where
+    assert where.call_count == 1
+    assert test.utils.expression_assert(
+        where, peewee.Expression(db.models.RecipeIngredients.recipe, '=', 1)
     )
 
     assert json.loads(ingredients_page.data) == {'ingredients': ingredients}
@@ -111,28 +117,26 @@ def test_recipe_get_utensils(app, monkeypatch):
      .where.return_value
      .dicts.return_value) = utensils
 
-    monkeypatch.setattr(
-        'db.models.Utensil.select',
-        mock_utensil_select
-    )
+    monkeypatch.setattr('db.models.Utensil.select', mock_utensil_select)
 
     utensils_page = app.get('/recipes/1/utensils')
 
-    mock_recipe_get.assert_called_once_with(
-        peewee.Expression(db.models.Recipe.id, '=', 1)
+    assert mock_recipe_get.call_count == 1
+    assert test.utils.expression_assert(
+        mock_recipe_get, peewee.Expression(db.models.Recipe.id, '=', 1)
     )
 
-    mock_utensil_select.assert_called_once_with()
+    assert mock_utensil_select.call_count == 1
+    assert mock_utensil_select.call_args == mock.call()
 
-    mock_utensil_select.return_value.join.assert_called_once_with(
-        db.models.RecipeUtensils
-    )
+    join = mock_utensil_select.return_value.join
+    assert join.call_count == 1
+    assert join.call_args == mock.call(db.models.RecipeUtensils)
 
-    (mock_utensil_select.return_value
-     .join.return_value
-     .where.assert_called_once_with(
-         peewee.Expression(db.models.RecipeUtensils.recipe, '=', 1)
-     )
+    where = join.return_value.where
+    assert where.call_count == 1
+    assert test.utils.expression_assert(
+        where, peewee.Expression(db.models.RecipeUtensils.recipe, '=', 1)
     )
 
     assert json.loads(utensils_page.data) == {'utensils': utensils}
