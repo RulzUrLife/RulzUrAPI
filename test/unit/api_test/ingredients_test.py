@@ -22,13 +22,13 @@ def test_ingredients_list(app, monkeypatch):
     assert mock_ingredient_select.call_args == mock.call()
     assert json.loads(ingredients_page.data) == {'ingredients': ingredients}
 
-def test_ingredients_post(app, monkeypatch, fake_model_factory):
+def test_ingredients_post(app, monkeypatch):
     """Test post /ingredients/"""
     ingredient = {'name': 'ingredient_1'}
     ingredient_mock = {'id': 1, 'name': 'ingredient_1'}
 
     mock_ingredient_create = mock.Mock()
-    mock_ingredient_create.return_value = fake_model_factory(ingredient_mock)
+    mock_ingredient_create.return_value = test.utils.FakeModel(ingredient_mock)
     monkeypatch.setattr('db.models.Ingredient.create', mock_ingredient_create)
     ingredients_create_page = app.post(
         '/ingredients/', data=json.dumps(ingredient),
@@ -143,12 +143,14 @@ def test_ingredients_put_400(app):
         }
     )
 
-def test_ingredient_get(app, monkeypatch, fake_model_factory):
+def test_ingredient_get(app, monkeypatch):
     """Test /ingredients/<id>"""
 
     ingredient = {'id': 1, 'name': 'ingredient_1'}
 
-    mock_ingredient_get = mock.Mock(return_value=fake_model_factory(ingredient))
+    mock_ingredient_get = mock.Mock(
+        return_value=test.utils.FakeModel(ingredient)
+    )
     monkeypatch.setattr('db.models.Ingredient.get', mock_ingredient_get)
     ingredient_page = app.get('/ingredients/1')
 

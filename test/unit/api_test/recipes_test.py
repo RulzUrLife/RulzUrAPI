@@ -20,12 +20,12 @@ def test_recipes_list(app, monkeypatch):
     mock_recipe_select.assert_called_once_with()
     assert json.loads(recipes_page.data) == {'recipes': recipes}
 
-def test_recipe_get(app, monkeypatch, fake_model_factory):
+def test_recipe_get(app, monkeypatch):
     """Test /recipes/<id>"""
 
     recipe = {'recipe_1': 'recipe_1_content'}
 
-    mock_recipe_get = mock.Mock(return_value=fake_model_factory(recipe))
+    mock_recipe_get = mock.Mock(return_value=test.utils.FakeModel(recipe))
     monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
     recipe_page = app.get('/recipes/1')
 

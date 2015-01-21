@@ -22,13 +22,13 @@ def test_utensils_list(app, monkeypatch):
     assert mock_utensil_select.call_args == mock.call()
     assert json.loads(utensils_page.data) == {'utensils': utensils}
 
-def test_utensils_post(app, monkeypatch, fake_model_factory):
+def test_utensils_post(app, monkeypatch):
     """Test post /utensils/"""
     utensil = {'name': 'utensil_1'}
     utensil_mock = {'id': 1, 'name': 'utensil_1'}
 
     mock_utensil_create = mock.Mock()
-    mock_utensil_create.return_value = fake_model_factory(utensil_mock)
+    mock_utensil_create.return_value = test.utils.FakeModel(utensil_mock)
     monkeypatch.setattr('db.models.Utensil.create', mock_utensil_create)
     utensils_create_page = app.post(
         '/utensils/', data=json.dumps(utensil), content_type='application/json'
@@ -134,12 +134,12 @@ def test_utensils_put_400(app):
         }
     )
 
-def test_utensil_get(app, monkeypatch, fake_model_factory):
+def test_utensil_get(app, monkeypatch):
     """Test /utensils/<id>"""
 
     utensil = {'id': 1, 'name': 'utensil_1'}
 
-    mock_utensil_get = mock.Mock(return_value=fake_model_factory(utensil))
+    mock_utensil_get = mock.Mock(return_value=test.utils.FakeModel(utensil))
     monkeypatch.setattr('db.models.Utensil.get', mock_utensil_get)
     utensil_page = app.get('/utensils/1')
 
