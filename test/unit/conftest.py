@@ -14,6 +14,7 @@ def mock_transaction():
     db.connector.database.transaction = noop_decorator
     reload(api.utensils)
     reload(api.ingredients)
+    reload(api.recipes)
 
 mock_transaction()
 

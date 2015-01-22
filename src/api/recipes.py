@@ -58,7 +58,6 @@ class RecipeListAPI(flask_restful.Resource):
             """
             ingredients_dataset = []
             ingredients_dict = {}
-
             for ingredient in ingredients_list:
                 # the name is the key in ingredients_dict
                 name = ingredient.pop('name')
@@ -104,7 +103,6 @@ class RecipeListAPI(flask_restful.Resource):
         recipe = utils.helpers.parse_args(
             utils.schemas.post_recipes_parser, flask.request.json
         )
-
         count = db.models.Recipe.select().where(
             db.models.Recipe.name == recipe.get('name')
         ).count()
@@ -131,7 +129,6 @@ class RecipeListAPI(flask_restful.Resource):
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
         db.models.RecipeIngredients.insert_many(ingredients).execute()
-
         return {'recipe': utils.schemas.recipe_parser.dump(recipe).data}, 201
 
 

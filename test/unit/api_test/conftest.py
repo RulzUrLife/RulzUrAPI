@@ -14,6 +14,28 @@ def error_missing_name():
     )
 
 @pytest.fixture
+def post_recipe_fixture():
+    """Simple fixture to post a recipe"""
+    ingredient = {
+        "name": "recipe_1",
+        "difficulty": 1,
+        "people": 2,
+        "duration": "0/5",
+        "category": "starter",
+        "directions": {},
+        "utensils": [
+            {"name": "utensil_1"},
+            {"name": "utensil_2"}
+        ],
+        "ingredients": [
+            {"name": "ingredient_1", "measurement": "L", "quantity": 1},
+            {"name": "ingredient_2", "measurement": "g", "quantity": 2},
+        ]
+    }
+
+    return ingredient
+
+@pytest.fixture
 def recipe_select_mocking(monkeypatch):
     """Simple factory for creating a mock_recipe_select"""
 

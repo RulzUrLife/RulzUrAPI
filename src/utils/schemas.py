@@ -34,6 +34,8 @@ def put_utensils_schema():
 
     return utensil_list_schema
 
+
+
 # pylint: disable=too-few-public-methods
 class IngredientSchema(marshmallow.Schema):
     """Schema representation of an Ingredient"""
@@ -65,6 +67,25 @@ def put_ingredients_schema():
     ingredient_schema.fields['id'].required = True
 
     return ingredient_list_schema
+
+
+
+def measurement_validation(measurement):
+    """Validate the category field for a recipe"""
+    measurements = ['L', 'g', 'oz', 'spoon']
+    if measurement not in measurements:
+        raise marshmallow.exceptions.ValidationError(
+            'Ingredient measurement is not a valid one (allowed values: %s).' %
+            ', '.join(measurements)
+        )
+
+class RecipeIngredientsSchema(marshmallow.Schema):
+    """Schema representation of RecipeIngredients"""
+    quantity = marshmallow.fields.Integer()
+    measurement = marshmallow.fields.String(validate=measurement_validation)
+    name = marshmallow.fields.String()
+    ingredient = marshmallow.fields.Nested(IngredientSchema())
+
 
 
 def people_validation(people_number):
@@ -102,30 +123,16 @@ def category_validation(category):
             ', '.join(categories)
         )
 
-class RecipeIngredientsSchema(marshmallow.Schema):
-    """Schema representation of RecipeIngredients"""
-    quantity = marshmallow.fields.Integer()
-    name = marshmallow.fields.String()
-    ingredient = marshmallow.fields.Nested(IngredientSchema())
-
 class RecipeSchema(marshmallow.Schema):
     """Schema representation of a Recipe"""
 
     id = marshmallow.fields.Integer()
     name = marshmallow.fields.String()
-    people = marshmallow.fields.Integer(
-        validate=people_validation
-    )
+    people = marshmallow.fields.Integer(validate=people_validation)
     directions = marshmallow.fields.Raw()
-    difficulty = marshmallow.fields.Integer(
-        validate=difficulty_validation
-    )
-    duration = marshmallow.fields.String(
-        validate=duration_validation
-    )
-    category = marshmallow.fields.String(
-        validate=category_validation
-    )
+    difficulty = marshmallow.fields.Integer(validate=difficulty_validation)
+    duration = marshmallow.fields.String(validate=duration_validation)
+    category = marshmallow.fields.String(validate=category_validation)
     ingredients = marshmallow.fields.List(
         marshmallow.fields.Nested(RecipeIngredientsSchema()),
     )
@@ -150,6 +157,7 @@ def recipe_parser_schema():
     recipe_schema = RecipeSchema()
     recipe_schema.fields['ingredients'].container.nested.exclude = ('name',)
     return recipe_schema
+
 
 
 post_utensils_parser = post_utensils_schema()
