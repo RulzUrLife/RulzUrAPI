@@ -29,16 +29,15 @@ class UtensilListAPI(flask_restful.Resource):
     def post(self):
         """Create an utensil"""
         utensil = utils.helpers.parse_args(
-            utils.schemas.post_utensils_parser, flask.request.json
+            utils.schemas.UtensilPostSchema(), flask.request.json
         )
 
         try:
             utensil = db.models.Utensil.create(**utensil)
         except peewee.IntegrityError:
             flask_restful.abort(409, message='Utensil already exists')
-
         return (
-            {'utensil': utils.schemas.utensil_parser.dump(utensil).data}, 201
+            {'utensil': utils.schemas.UtensilSchema().dump(utensil).data}, 201
         )
 
     @db.connector.database.transaction()
@@ -46,18 +45,20 @@ class UtensilListAPI(flask_restful.Resource):
         """Update multiple utensils"""
         utensils = []
         data = utils.helpers.parse_args(
-            utils.schemas.put_utensils_parser, flask.request.json
+            utils.schemas.UtensilListSchema(), flask.request.json
         )
 
         for utensil in data['utensils']:
             utensil_id = utensil.pop('id')
             try:
-                utensils.append(db.models.Utensil
-                                .update(returning=True, **utensil)
-                                .where(db.models.Utensil.id == utensil_id)
-                                .dicts()
-                                .execute()
-                                .next())
+                utensils.append(
+                    next(db.models.Utensil
+                         .update(returning=True, **utensil)
+                         .where(db.models.Utensil.id == utensil_id)
+                         .dicts()
+                         .execute())
+                )
+
             except StopIteration:
                 pass
 
@@ -70,7 +71,7 @@ class UtensilAPI(flask_restful.Resource):
     def get(self, utensil_id):
         """Provide the utensil for utensil_id"""
         return {
-            'utensil': utils.schemas.utensil_parser.dump(
+            'utensil': utils.schemas.UtensilSchema().dump(
                 get_utensil(utensil_id)
             ).data
         }
@@ -80,16 +81,16 @@ class UtensilAPI(flask_restful.Resource):
         """Update the utensil for utensil_id"""
 
         utensil = utils.helpers.parse_args(
-            utils.schemas.utensil_parser, flask.request.json
+            utils.schemas.UtensilSchema(exclude=('id',)), flask.request.json
         )
 
         try:
-            return (db.models.Utensil
-                    .update(returning=True, **utensil)
-                    .where(db.models.Utensil.id == utensil_id)
-                    .dicts()
-                    .execute()
-                    .next())
+            return next(db.models.Utensil
+                        .update(returning=True, **utensil)
+                        .where(db.models.Utensil.id == utensil_id)
+                        .dicts()
+                        .execute())
+
         except StopIteration:
             flask_restful.abort(404)
 

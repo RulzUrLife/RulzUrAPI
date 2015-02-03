@@ -1,5 +1,7 @@
 """Utilities for testing"""
 
+import json
+
 #pylint: disable=too-few-public-methods
 class FakeModel(object):
     """FakeModel mocks BaseModel
@@ -20,3 +22,7 @@ def expression_assert(fn, expression):
     """Compare the first argument with the expression __dict__"""
     (expression_arg,), _ = fn.call_args
     return expression_arg.__dict__ == expression.__dict__
+
+def load(page):
+    """Decode a page and load the nested json"""
+    return json.loads(page.data.decode('utf-8'))

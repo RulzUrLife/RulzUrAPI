@@ -1,6 +1,6 @@
 language: python
 python:
-  - "2.7"
+  - "3.4"
 
 install:
   - pip install -Ur requirements.txt
@@ -12,7 +12,7 @@ env:
 before_script:
   - source misc/pylint_files
 
-script: 
+script:
   # run pylint with no reports
   - pylint -r n $PYLINT_FILES
   - py.test

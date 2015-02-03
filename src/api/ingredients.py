@@ -28,7 +28,7 @@ class IngredientListAPI(flask_restful.Resource):
     def post(self):
         """Create an ingredient"""
         ingredient = utils.helpers.parse_args(
-            utils.schemas.post_ingredients_parser, flask.request.json
+            utils.schemas.IngredientPostSchema(), flask.request.json
         )
 
         try:
@@ -36,7 +36,7 @@ class IngredientListAPI(flask_restful.Resource):
         except peewee.IntegrityError:
             flask_restful.abort(409, message='Ingredient already exists')
 
-        ingredient = utils.schemas.ingredient_parser.dump(ingredient).data
+        ingredient = utils.schemas.IngredientSchema().dump(ingredient).data
         return (
             {'ingredient': ingredient}, 201
         )
@@ -46,19 +46,18 @@ class IngredientListAPI(flask_restful.Resource):
         """Update multiple ingredients"""
         ingredients = []
         data = utils.helpers.parse_args(
-            utils.schemas.put_ingredients_parser, flask.request.json
+            utils.schemas.IngredientListSchema(), flask.request.json
         )
 
         for ingredient in data['ingredients']:
             ingredient_id = ingredient.pop('id')
             try:
                 ingredients.append(
-                    db.models.Ingredient
-                    .update(returning=True, **ingredient)
-                    .where(db.models.Ingredient.id == ingredient_id)
-                    .dicts()
-                    .execute()
-                    .next()
+                    next(db.models.Ingredient
+                         .update(returning=True, **ingredient)
+                         .where(db.models.Ingredient.id == ingredient_id)
+                         .dicts()
+                         .execute())
                 )
             except StopIteration:
                 pass
@@ -73,7 +72,7 @@ class IngredientAPI(flask_restful.Resource):
     def get(self, ingredient_id):
         """Provide the ingredient for ingredient_id"""
         return {
-            'ingredient': utils.schemas.ingredient_parser.dump(
+            'ingredient': utils.schemas.IngredientSchema().dump(
                 get_ingredient(ingredient_id)
             ).data
         }
@@ -82,17 +81,16 @@ class IngredientAPI(flask_restful.Resource):
     def put(self, ingredient_id):
         """Update the ingredient for ingredient_id"""
         ingredient = utils.helpers.parse_args(
-            utils.schemas.ingredient_parser, flask.request.json
+            utils.schemas.IngredientSchema(exclude=('id',)), flask.request.json
         )
 
         try:
-            return (
+            return next(
                 db.models.Ingredient
                 .update(returning=True, **ingredient)
                 .where(db.models.Ingredient.id == ingredient_id)
                 .dicts()
                 .execute()
-                .next()
             )
 
         except StopIteration:

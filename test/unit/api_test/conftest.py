@@ -6,17 +6,16 @@ import types
 @pytest.fixture
 def error_missing_name():
     """Simple fixture for missing name error"""
-    return (
-        {
-            'message': 'Request malformed',
-            'errors': {'name': ['Missing data for required field.']}
-        }
-    )
+    return {
+        'message': 'Request malformed',
+        'errors': {'name': ['Missing data for required field.']}
+    }
+
 
 @pytest.fixture
 def post_recipe_fixture():
     """Simple fixture to post a recipe"""
-    ingredient = {
+    return {
         "name": "recipe_1",
         "difficulty": 1,
         "people": 2,
@@ -32,8 +31,6 @@ def post_recipe_fixture():
             {"name": "ingredient_2", "measurement": "g", "quantity": 2},
         ]
     }
-
-    return ingredient
 
 @pytest.fixture
 def recipe_select_mocking(monkeypatch):
@@ -67,13 +64,13 @@ def returning_update_mocking():
             .dicts.return_value
             .execute
         )
-        if not isinstance(returns, types.GeneratorType):
-            mocking = mocking.return_value.next
 
         if hasattr(returns, '__call__'):
             mocking.side_effect = returns
-        else:
+        elif isinstance(returns, types.GeneratorType):
             mocking.return_value = returns
+        else:
+            mocking.return_value = iter([returns])
 
         return mock_returning_update
 

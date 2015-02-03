@@ -1,4 +1,5 @@
 """API endpoints testing"""
+
 import copy
 import json
 import peewee
@@ -19,7 +20,7 @@ def test_recipes_list(app, monkeypatch):
     monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
     recipes_page = app.get('/recipes/')
     mock_recipe_select.assert_called_once_with()
-    assert json.loads(recipes_page.data) == {'recipes': recipes}
+    assert test.utils.load(recipes_page) == {'recipes': recipes}
 
 def test_recipe_get(app, monkeypatch):
     """Test /recipes/<id>"""
@@ -34,7 +35,7 @@ def test_recipe_get(app, monkeypatch):
     assert test.utils.expression_assert(
         mock_recipe_get, peewee.Expression(db.models.Ingredient.id, '=', 1)
     )
-    assert json.loads(recipe_page.data) == {'recipe': recipe}
+    assert test.utils.load(recipe_page) == {'recipe': recipe}
 
 
 def test_recipe_get_404(app, monkeypatch):
@@ -111,7 +112,6 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
         '/recipes/', data=json.dumps(post_recipe_fixture),
         content_type='application/json'
     )
-
     execute = mock_ingredient_insert.return_value.execute
     assert mock_ingredient_insert.call_count == 1
     assert mock_ingredient_insert.call_args == mock.call(
@@ -130,20 +130,16 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
 
     post_recipe_fixture['id'] = 1
 
-    ingredients = zip(ingredients_mock, post_recipe_fixture['ingredients'])
-    ingredients_mock = []
-    for fake_model, ingredient in ingredients:
-        ingredient.pop('name')
-        ingredient['ingredient'] = fake_model.to_dict()
-        ingredients_mock.append(ingredient)
+    # merge the fake model with the post fixture
+    for index, ingredient in enumerate(ingredients_mock):
+        post_recipe_fixture['ingredients'][index].update(ingredient.to_dict())
 
-    post_recipe_fixture['ingredients'] = ingredients_mock
     post_recipe_fixture['utensils'] = [
         utensil.to_dict() for utensil in utensils_mock
     ]
 
     assert recipes_create_page.status_code == 201
-    assert json.loads(recipes_create_page.data) == {
+    assert test.utils.load(recipes_create_page) == {
         'recipe': post_recipe_fixture
     }
 
@@ -155,7 +151,7 @@ def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
     monkeypatch.setattr('db.models.Recipe.select', mock_select)
 
     mock_select.return_value.where.return_value.count.return_value = 1
-    ingredients_create_page = app.post(
+    recipes_create_page = app.post(
         '/recipes/', data=json.dumps(post_recipe_fixture),
         content_type='application/json'
     )
@@ -166,8 +162,8 @@ def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
             db.models.Recipe.name, '=', post_recipe_fixture.get('name')
         )
     )
-    assert ingredients_create_page.status_code == 409
-    assert json.loads(ingredients_create_page.data) == (
+    assert recipes_create_page.status_code == 409
+    assert test.utils.load(recipes_create_page) == (
         {'message': 'Recipe already exists.'}
     )
 
@@ -186,128 +182,182 @@ def test_recipes_post_400(app, post_recipe_fixture):
         'message': 'Request malformed'
     }
     post_recipe_fixture.pop('name')
-    ingredients_create_page = post(post_recipe_fixture)
-
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    recipes_create_page = post(post_recipe_fixture)
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['difficulty'] = 0
-    ingredients_create_page = post(post_recipe_fixture)
-    error_message['errors']['difficulty'] = [
-        'Difficulty level must be between 1 and 5.'
-    ]
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['difficulty'] = ['Must be between 1 and 5.']
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['difficulty'] = 6
-    ingredients_create_page = post(post_recipe_fixture)
-    error_message['errors']['difficulty'] = [
-        'Difficulty level must be between 1 and 5.'
-    ]
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['difficulty'] = ['Must be between 1 and 5.']
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('difficulty')
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['difficulty'] = [
         'Missing data for required field.'
     ]
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture['people'] = 0
-    ingredients_create_page = post(post_recipe_fixture)
-    error_message['errors']['people'] = [
-        'People number must be between 1 and 12.'
-    ]
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['people'] = ['Must be between 1 and 12.']
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['people'] = 13
-    ingredients_create_page = post(post_recipe_fixture)
-    error_message['errors']['people'] = [
-        'People number must be between 1 and 12.'
-    ]
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['people'] = ['Must be between 1 and 12.']
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('people')
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['people'] = ['Missing data for required field.']
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['duration'] = 'error'
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['duration'] = [
-        'Duration value is not a valid one.'
+        '\'error\' is not a valid choice for this field.'
     ]
-
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('duration')
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['duration'] = ['Missing data for required field.']
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
-    post_recipe_fixture['category'] = 'test'
-    ingredients_create_page = post(post_recipe_fixture)
-    error_message['errors']['category'] = [
-        'Recipe category is not a valid one '
-        '(allowed values: starter, main, dessert).'
+    post_recipe_fixture['ingredients'][0]['measurement'] = 'error'
+    recipes_create_page = post(post_recipe_fixture)
+
+    error_message['errors']['ingredients'] = {}
+    error_message['errors']['ingredients']['measurement'] = [
+        '\'error\' is not a valid choice for this field.'
     ]
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
+    post_recipe_fixture['ingredients'][0].pop('measurement')
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['ingredients']['measurement'] = [
+        'Missing data for required field if \'id\' field is not provided.'
+    ]
+    error_message['errors']['ingredients']['id'] = [
+        'Missing data for required field if \'measurement, name, quantity\' '
+        'fields are not provided.'
+    ]
+
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+    post_recipe_fixture['ingredients'][0]['quantity'] = -1
+
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['ingredients']['quantity'] = [
+        'Must be at least 0.'
+    ]
+
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+    post_recipe_fixture['ingredients'][0].pop('quantity')
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['ingredients']['quantity'] = [
+        'Missing data for required field if \'id\' field is not provided.'
+    ]
+
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+
+    post_recipe_fixture['ingredients'][0].pop('name')
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['ingredients']['name'] = [
+        'Missing data for required field if \'id\' field is not provided.'
+    ]
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+    post_recipe_fixture['utensils'][0].pop('name')
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['utensils'] = {}
+    error_message['errors']['utensils']['name'] = [
+        'Missing data for required field if \'id\' field is not provided.'
+    ]
+    error_message['errors']['utensils']['id'] = [
+        'Missing data for required field if \'name\' '
+        'fields are not provided.'
+    ]
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+
+    post_recipe_fixture['category'] = 'error'
+    recipes_create_page = post(post_recipe_fixture)
+    error_message['errors']['category'] = [
+        '\'error\' is not a valid choice for this field.'
+    ]
+
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture.pop('category')
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['category'] = ['Missing data for required field.']
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('directions')
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['directions'] = [
         'Missing data for required field.'
     ]
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture.pop('utensils')
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['utensils'] = [
         'Missing data for required field.'
     ]
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture.pop('ingredients')
-    ingredients_create_page = post(post_recipe_fixture)
+    recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['ingredients'] = [
         'Missing data for required field.'
     ]
 
-    assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_message
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
 
 
 def test_recipe_get_ingredients(app, monkeypatch):
@@ -354,7 +404,7 @@ def test_recipe_get_ingredients(app, monkeypatch):
         where, peewee.Expression(db.models.RecipeIngredients.recipe, '=', 1)
     )
 
-    assert json.loads(ingredients_page.data) == {'ingredients': ingredients}
+    assert test.utils.load(ingredients_page) == {'ingredients': ingredients}
 
 
 def test_recipe_get_ingredients_404(app, monkeypatch):
@@ -403,7 +453,7 @@ def test_recipe_get_utensils(app, monkeypatch):
         where, peewee.Expression(db.models.RecipeUtensils.recipe, '=', 1)
     )
 
-    assert json.loads(utensils_page.data) == {'utensils': utensils}
+    assert test.utils.load(utensils_page) == {'utensils': utensils}
 
 
 def test_recipe_get_utensils_404(app, monkeypatch):

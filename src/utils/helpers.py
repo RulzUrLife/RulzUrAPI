@@ -28,7 +28,6 @@ def parse_args(loader_fn, json, message=None):
         message = 'Request malformed'
 
     data, errors = loader_fn.load(json)
-
     if len(errors):
         raise APIException(message, payload={'errors': errors})
 

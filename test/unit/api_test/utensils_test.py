@@ -20,7 +20,7 @@ def test_utensils_list(app, monkeypatch):
 
     assert mock_utensil_select.call_count == 1
     assert mock_utensil_select.call_args == mock.call()
-    assert json.loads(utensils_page.data) == {'utensils': utensils}
+    assert test.utils.load(utensils_page) == {'utensils': utensils}
 
 def test_utensils_post(app, monkeypatch):
     """Test post /utensils/"""
@@ -35,7 +35,7 @@ def test_utensils_post(app, monkeypatch):
     )
 
     assert utensils_create_page.status_code == 201
-    assert json.loads(utensils_create_page.data) == {'utensil': utensil_mock}
+    assert test.utils.load(utensils_create_page) == {'utensil': utensil_mock}
 
     assert mock_utensil_create.call_count == 1
     assert mock_utensil_create.call_args == mock.call(**utensil)
@@ -48,7 +48,7 @@ def test_utensils_post_400(app, error_missing_name):
         '/utensils/', data=json.dumps(utensil), content_type='application/json'
     )
     assert utensils_create_page.status_code == 400
-    assert json.loads(utensils_create_page.data) == error_missing_name
+    assert test.utils.load(utensils_create_page) == error_missing_name
 
 def test_utensils_put(app, returning_update_mocking, monkeypatch):
     """Test put /utensils/"""
@@ -79,7 +79,7 @@ def test_utensils_put(app, returning_update_mocking, monkeypatch):
 
     assert mock_returning_update.has_calls(calls)
     assert utensils_update_page.status_code == 200
-    assert json.loads(utensils_update_page.data) == (
+    assert test.utils.load(utensils_update_page) == (
         {'utensils': utensils_update}
     )
 
@@ -113,7 +113,7 @@ def test_utensils_put_400(app):
         '/utensils/', data=json.dumps({}), content_type='application/json'
     )
     assert utensils_update_page.status_code == 400
-    assert json.loads(utensils_update_page.data) == (
+    assert test.utils.load(utensils_update_page) == (
         {
             'message': 'Request malformed',
             'errors': {'utensils': ['Missing data for required field.']}
@@ -125,7 +125,7 @@ def test_utensils_put_400(app):
         content_type='application/json'
     )
     assert utensils_update_page.status_code == 400
-    assert json.loads(utensils_update_page.data) == (
+    assert test.utils.load(utensils_update_page) == (
         {
             'message': 'Request malformed',
             'errors': {
@@ -148,7 +148,7 @@ def test_utensil_get(app, monkeypatch):
         mock_utensil_get,
         peewee.Expression(db.models.Utensil.id, '=', 1)
     )
-    assert json.loads(utensil_page.data) == {'utensil': utensil}
+    assert test.utils.load(utensil_page) == {'utensil': utensil}
 
 
 def test_utensil_get_404(app, monkeypatch):
@@ -183,7 +183,7 @@ def test_utensil_put(app, returning_update_mocking, monkeypatch):
         returning=True, **utensil
     )
     assert utensil_update_page.status_code == 200
-    assert json.loads(utensil_update_page.data) == utensil_update
+    assert test.utils.load(utensil_update_page) == utensil_update
 
 def test_utensil_put_cleanup_args(app, returning_update_mocking, monkeypatch):
     """Test put /utensils/<id> arguments cleaner"""
@@ -250,7 +250,7 @@ def test_utensil_get_recipes(app, monkeypatch, recipe_select_mocking):
         where, peewee.Expression(db.models.RecipeUtensils.utensil, '=', 1)
     )
 
-    assert json.loads(recipes_page.data) == {'recipes': recipes}
+    assert test.utils.load(recipes_page) == {'recipes': recipes}
 
 def test_utensil_get_recipes_404(app, monkeypatch):
     """Test /utensils/<id>/recipes with utensil not found"""

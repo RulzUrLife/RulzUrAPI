@@ -20,7 +20,7 @@ def test_ingredients_list(app, monkeypatch):
 
     assert mock_ingredient_select.call_count == 1
     assert mock_ingredient_select.call_args == mock.call()
-    assert json.loads(ingredients_page.data) == {'ingredients': ingredients}
+    assert test.utils.load(ingredients_page) == {'ingredients': ingredients}
 
 def test_ingredients_post(app, monkeypatch):
     """Test post /ingredients/"""
@@ -36,7 +36,7 @@ def test_ingredients_post(app, monkeypatch):
     )
 
     assert ingredients_create_page.status_code == 201
-    assert json.loads(ingredients_create_page.data) == {
+    assert test.utils.load(ingredients_create_page) == {
         'ingredient': ingredient_mock
     }
     assert mock_ingredient_create.call_count == 1
@@ -51,7 +51,7 @@ def test_ingredients_post_400(app, error_missing_name):
         content_type='application/json'
     )
     assert ingredients_create_page.status_code == 400
-    assert json.loads(ingredients_create_page.data) == error_missing_name
+    assert test.utils.load(ingredients_create_page) == error_missing_name
 
 def test_ingredients_put(app, returning_update_mocking, monkeypatch):
     """Test put /ingredients/"""
@@ -86,7 +86,7 @@ def test_ingredients_put(app, returning_update_mocking, monkeypatch):
 
     assert mock_returning_update.has_calls(calls)
     assert ingredients_update_page.status_code == 200
-    assert json.loads(ingredients_update_page.data) == (
+    assert test.utils.load(ingredients_update_page) == (
         {'ingredients': ingredients_update}
     )
 
@@ -122,7 +122,7 @@ def test_ingredients_put_400(app):
         '/ingredients/', data=json.dumps({}), content_type='application/json'
     )
     assert ingredients_update_page.status_code == 400
-    assert json.loads(ingredients_update_page.data) == (
+    assert test.utils.load(ingredients_update_page) == (
         {
             'message': 'Request malformed',
             'errors': {'ingredients': ['Missing data for required field.']}
@@ -134,7 +134,7 @@ def test_ingredients_put_400(app):
         content_type='application/json'
     )
     assert ingredients_update_page.status_code == 400
-    assert json.loads(ingredients_update_page.data) == (
+    assert test.utils.load(ingredients_update_page) == (
         {
             'message': 'Request malformed',
             'errors': {
@@ -158,7 +158,7 @@ def test_ingredient_get(app, monkeypatch):
     assert test.utils.expression_assert(
         mock_ingredient_get, peewee.Expression(db.models.Ingredient.id, '=', 1)
     )
-    assert json.loads(ingredient_page.data) == {'ingredient': ingredient}
+    assert test.utils.load(ingredient_page) == {'ingredient': ingredient}
 
 def test_ingredient_get_404(app, monkeypatch):
     """Test /ingredients/<id> with ingredient not found"""
@@ -193,7 +193,7 @@ def test_ingredient_put(app, returning_update_mocking, monkeypatch):
         returning=True, **ingredient
     )
     assert ingredient_update_page.status_code == 200
-    assert json.loads(ingredient_update_page.data) == ingredient_update
+    assert test.utils.load(ingredient_update_page) == ingredient_update
 
 
 def test_ingredient_put_404(app, returning_update_mocking, monkeypatch):
@@ -265,7 +265,7 @@ def test_ingredient_get_recipes(app, monkeypatch, recipe_select_mocking):
         peewee.Expression(db.models.RecipeIngredients.ingredient, '=', 1)
     )
 
-    assert json.loads(ingredients_page.data) == {'recipes': recipes}
+    assert test.utils.load(ingredients_page) == {'recipes': recipes}
 
 def test_ingredient_get_recipes_404(app, monkeypatch):
     """Test /ingredients/<id>/recipes with ingredient not found"""

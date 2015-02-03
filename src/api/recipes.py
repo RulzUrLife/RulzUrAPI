@@ -1,5 +1,4 @@
 """API recipes entrypoints"""
-
 import flask_restful
 import flask
 
@@ -68,7 +67,6 @@ class RecipeListAPI(flask_restful.Resource):
                 raise ValueError(
                     'There is multiple entries for the same ingredient'
                 )
-
             query = db.models.Ingredient.insert_many_unique(
                 db.models.Ingredient.name, ingredients_dataset
             )
@@ -81,8 +79,9 @@ class RecipeListAPI(flask_restful.Resource):
                      ))
             for ingredient in query:
                 ingredients_dict[ingredient.name]['ingredient'] = ingredient
-
-            return ingredients_dict.values()
+            return sorted(
+                ingredients_dict.values(), key=(lambda x: x['ingredient'].id)
+            )
 
         def insert_utensils(utensils):
             """Insert utensils into the Utensil table and return the entries"""
@@ -99,9 +98,8 @@ class RecipeListAPI(flask_restful.Resource):
                      .select()
                      .where(db.models.Utensil.name << list(names)))
             return list(query)
-
         recipe = utils.helpers.parse_args(
-            utils.schemas.post_recipes_parser, flask.request.json
+            utils.schemas.RecipePostSchema(), flask.request.json
         )
         count = db.models.Recipe.select().where(
             db.models.Recipe.name == recipe.get('name')
@@ -129,7 +127,9 @@ class RecipeListAPI(flask_restful.Resource):
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
         db.models.RecipeIngredients.insert_many(ingredients).execute()
-        return {'recipe': utils.schemas.recipe_parser.dump(recipe).data}, 201
+        return {
+            'recipe': utils.schemas.RecipeSchema().dump(recipe).data
+        }, 201
 
 
 # pylint: disable=too-few-public-methods

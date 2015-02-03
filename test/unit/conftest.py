@@ -1,4 +1,6 @@
 """Configuration and fixture for unit testing"""
+import imp
+
 import pytest
 import ipdb
 
@@ -12,9 +14,9 @@ def mock_transaction():
         return lambda x: x
 
     db.connector.database.transaction = noop_decorator
-    reload(api.utensils)
-    reload(api.ingredients)
-    reload(api.recipes)
+    imp.reload(api.utensils)
+    imp.reload(api.ingredients)
+    imp.reload(api.recipes)
 
 mock_transaction()
 

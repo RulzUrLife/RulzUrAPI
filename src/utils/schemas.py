@@ -1,172 +1,187 @@
 """Schemas for dumping and loading datas of RulzUrAPI"""
+import functools
+
 import marshmallow
 import marshmallow.exceptions
+import marshmallow.validate
 
 # pylint: disable=too-few-public-methods
-class UtensilSchema(marshmallow.Schema):
-    """Schema representation of an Utensil"""
+class DefaultSchema(marshmallow.Schema):
+    """Default configuration for a Schema
+
+    Has an id field required and a skip missing option
+    (avoid setting a missing attribute to None)
+    """
+    id = marshmallow.fields.Integer(required=True)
+
+    class Meta(object):
+        """Options for DefaultSchema"""
+        skip_missing = True
+
+# pylint: disable=too-few-public-methods
+class PostSchema(marshmallow.Schema):
+    """Default configuration for post arguments
+
+    Exclude the id field, and require all the other fields
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(PostSchema, self).__init__(*args, **kwargs)
+
+        for field in self.fields.values():
+            field.required = True
+
+    class Meta(object):
+        """Options for the PostSchema"""
+        exclude = ('id',)
+
+
+# pylint: disable=too-few-public-methods
+class NestedSchema(marshmallow.Schema):
+    """Default configuration for a nested schema
+
+    If an object is nested the method can either be a post or a put, that is
+    why we have a custom validation here.
+
+    First no field is required, then, we check if all attributes are provided
+    or if the id one is present. If not, an error is raised.
+    """
     id = marshmallow.fields.Integer()
+
+    def __init__(self, *args, **kwargs):
+        super(NestedSchema, self).__init__(*args, **kwargs)
+        def validate_nested(field, _, data):
+            """Validator function for a specific field
+
+            Provide a message if the field is missing and the 'id' is not
+            provided
+            """
+
+            if 'id' in data or field in data:
+                return
+            raise marshmallow.ValidationError(
+                'Missing data for required field if \'id\' field is not '
+                'provided.',
+                field
+            )
+
+        def validate_nested_id(fields, _, data):
+            """Validator function for the id field
+
+            same as validate nested but the message is different
+            """
+            if 'id' in data or all([field in data for field in fields]):
+                return
+            raise marshmallow.ValidationError(
+                'Missing data for required field if \'%s\' fields are not '
+                'provided.' % ', '.join(sorted(fields)), 'id'
+            )
+
+        fields = [key for key in self.fields.keys() if key != 'id']
+
+        self.validator(functools.partial(validate_nested_id, fields))
+        for field in fields:
+            self.validator(functools.partial(validate_nested, field))
+
+
+# pylint: disable=too-few-public-methods
+class UtensilSchema(DefaultSchema):
+    """Utensil schema (for put method, ie: the 'id' field is required)"""
     name = marshmallow.fields.String()
+
 
 # pylint: disable=too-few-public-methods
 class UtensilListSchema(marshmallow.Schema):
-    """Schema representation of a list of Utensils"""
+    """UtensilList schema, this is for a bulk update.
+
+    We need a list of utensils with the arguments of the put method
+    """
     utensils = marshmallow.fields.List(
-        marshmallow.fields.Nested(UtensilSchema()),
+        marshmallow.fields.Nested(UtensilSchema), required=True
     )
-
-def post_utensils_schema():
-    """Build a post_utensils request parser"""
-    utensil_schema = UtensilSchema(exclude=('id',))
-    utensil_schema.fields['name'].required = True
-
-    return utensil_schema
-
-def put_utensils_schema():
-    """Build a put_utensils request parser"""
-    utensil_list_schema = UtensilListSchema()
-
-    utensils_field = utensil_list_schema.fields['utensils']
-    utensil_schema = utensils_field.container.nested
-
-    utensils_field.required = True
-    utensil_schema.fields['id'].required = True
-
-    return utensil_list_schema
-
 
 
 # pylint: disable=too-few-public-methods
-class IngredientSchema(marshmallow.Schema):
-    """Schema representation of an Ingredient"""
-    id = marshmallow.fields.Integer()
+class UtensilPostSchema(PostSchema, UtensilSchema):
+    """Schema for utensil post arguments"""
+    pass
+
+
+# pylint: disable=too-few-public-methods
+class IngredientSchema(DefaultSchema):
+    """Ingredient schema (for put method, ie: the 'id' field is required)"""
     name = marshmallow.fields.String()
+
 
 # pylint: disable=too-few-public-methods
 class IngredientListSchema(marshmallow.Schema):
-    """Schema representation of a list of Ingredients"""
+    """UtensilList schema, this is for a bulk update.
+
+    We need a list of utensils with the arguments of the put method
+    """
     ingredients = marshmallow.fields.List(
-        marshmallow.fields.Nested(IngredientSchema()),
+        marshmallow.fields.Nested(IngredientSchema), required=True
     )
 
-def post_ingredients_schema():
-    """Build a post_ingredients request parser"""
-    ingredient_schema = IngredientSchema(exclude=('id',))
-    ingredient_schema.fields['name'].required = True
 
-    return ingredient_schema
-
-def put_ingredients_schema():
-    """Build a put_ingredients request parser"""
-    ingredient_list_schema = IngredientListSchema()
-
-    ingredients_field = ingredient_list_schema.fields['ingredients']
-    ingredient_schema = ingredients_field.container.nested
-
-    ingredients_field.required = True
-    ingredient_schema.fields['id'].required = True
-
-    return ingredient_list_schema
+# pylint: disable=too-few-public-methods
+class IngredientPostSchema(PostSchema, IngredientSchema):
+    """Schema for ingredient post arguments"""
+    pass
 
 
-
-def measurement_validation(measurement):
-    """Validate the category field for a recipe"""
-    measurements = ['L', 'g', 'oz', 'spoon']
-    if measurement not in measurements:
-        raise marshmallow.exceptions.ValidationError(
-            'Ingredient measurement is not a valid one (allowed values: %s).' %
-            ', '.join(measurements)
-        )
-
-class RecipeIngredientsSchema(marshmallow.Schema):
-    """Schema representation of RecipeIngredients"""
-    quantity = marshmallow.fields.Integer()
-    measurement = marshmallow.fields.String(validate=measurement_validation)
+# pylint: disable=too-few-public-methods
+class RecipeIngredientsSchema(NestedSchema, DefaultSchema):
+    """Ingredient nested schema for recipe"""
     name = marshmallow.fields.String()
-    ingredient = marshmallow.fields.Nested(IngredientSchema())
+    quantity = marshmallow.fields.Integer(
+        validate=marshmallow.validate.Range(0)
+    )
+    measurement = marshmallow.fields.Select(['L', 'g', 'oz', 'spoon'])
+
+    def dump(self, obj, *args, **kwargs):
+        """The entity has the ingredient nested, so it needs to be merged"""
+        ingredient = obj.pop('ingredient')
+        ingredient = IngredientSchema().dump(ingredient).data
+        obj.update(ingredient)
+        return super(RecipeIngredientsSchema, self).dump(obj, *args, **kwargs)
 
 
-
-def people_validation(people_number):
-    """Validate the number of people for a recipe"""
-    if people_number < 1 or people_number > 12:
-        raise marshmallow.exceptions.ValidationError(
-            'People number must be between 1 and 12.'
-        )
-
-def difficulty_validation(difficulty_level):
-    """Validate the difficulty level for a recipe"""
-    if difficulty_level < 1 or difficulty_level > 5:
-        raise marshmallow.exceptions.ValidationError(
-            'Difficulty level must be between 1 and 5.'
-        )
-
-def duration_validation(duration):
-    """Validate the duration value for a recipe"""
-    durations = [
-        '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45', '45/60',
-        '60/75', '75/90', '90/120', '120/150'
-    ]
-
-    if duration not in durations:
-        raise marshmallow.exceptions.ValidationError(
-            'Duration value is not a valid one.'
-        )
-
-def category_validation(category):
-    """Validate the category field for a recipe"""
-    categories = ['starter', 'main', 'dessert']
-    if category not in categories:
-        raise marshmallow.exceptions.ValidationError(
-            'Recipe category is not a valid one (allowed values: %s).' %
-            ', '.join(categories)
-        )
-
-class RecipeSchema(marshmallow.Schema):
-    """Schema representation of a Recipe"""
-
-    id = marshmallow.fields.Integer()
+# pylint: disable=too-few-public-methods
+class RecipeUtensilsSchema(NestedSchema, DefaultSchema):
+    """Utensil nested schema for recipe"""
     name = marshmallow.fields.String()
-    people = marshmallow.fields.Integer(validate=people_validation)
+
+
+# pylint: disable=too-few-public-methods
+class RecipeSchema(DefaultSchema):
+    """Recipe schema (for put method, ie: the 'id' field is required)"""
+
+    name = marshmallow.fields.String()
+    people = marshmallow.fields.Integer(
+        validate=marshmallow.validate.Range(1, 12)
+    )
     directions = marshmallow.fields.Raw()
-    difficulty = marshmallow.fields.Integer(validate=difficulty_validation)
-    duration = marshmallow.fields.String(validate=duration_validation)
-    category = marshmallow.fields.String(validate=category_validation)
+    difficulty = marshmallow.fields.Integer(
+        validate=marshmallow.validate.Range(1, 5)
+    )
+    duration = marshmallow.fields.Select([
+        '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45',
+        '45/60', '60/75', '75/90', '90/120', '120/150'
+    ])
+    category = marshmallow.fields.Select([
+        'starter', 'main', 'dessert'
+    ])
     ingredients = marshmallow.fields.List(
-        marshmallow.fields.Nested(RecipeIngredientsSchema()),
+        marshmallow.fields.Nested(RecipeIngredientsSchema)
     )
     utensils = marshmallow.fields.List(
-        marshmallow.fields.Nested(UtensilSchema()),
+        marshmallow.fields.Nested(RecipeUtensilsSchema)
     )
 
-def post_recipes_schema():
-    """Build a post_recipes request parser"""
-    recipe_schema = RecipeSchema()
-    fields = [
-        'name', 'people', 'directions', 'difficulty', 'duration', 'category',
-        'ingredients', 'utensils'
-    ]
-    for field in fields:
-        recipe_schema.fields[field].required = True
 
-    return recipe_schema
+# pylint: disable=too-few-public-methods
+class RecipePostSchema(PostSchema, RecipeSchema):
+    """Schema for recipe post arguments"""
+    pass
 
-def recipe_parser_schema():
-    """Build a recipe_parser request parser"""
-    recipe_schema = RecipeSchema()
-    recipe_schema.fields['ingredients'].container.nested.exclude = ('name',)
-    return recipe_schema
-
-
-
-post_utensils_parser = post_utensils_schema()
-put_utensils_parser = put_utensils_schema()
-utensil_parser = UtensilSchema()
-
-post_ingredients_parser = post_ingredients_schema()
-put_ingredients_parser = put_ingredients_schema()
-ingredient_parser = IngredientSchema()
-
-post_recipes_parser = post_recipes_schema()
-recipe_parser = recipe_parser_schema()
