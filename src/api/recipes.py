@@ -2,12 +2,13 @@
 import flask_restful
 import flask
 
+import peewee
+
 import db.connector
 import db.models
 
 import utils.helpers
 
-import peewee
 
 def get_recipe(recipe_id):
     """Get a specific recipe or raise 404 if it does not exists"""
@@ -16,13 +17,80 @@ def get_recipe(recipe_id):
     except peewee.DoesNotExist:
         flask_restful.abort(404)
 
+# pylint: disable=protected-access
+def lock_table(model):
+    """Lock table to avoid race conditions"""
+    query_compiler = peewee.QueryCompiler()
+    model_entity, _ = query_compiler._parse_entity(
+        model._as_entity(), None, None
+    )
+    lock_request = (
+        'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE' % model_entity
+    )
+
+    #protect the database table against race condition
+    db.connector.database.execute_sql(lock_request)
+
+
+def get_or_insert(model, elts_insert, elts_get):
+    """Get the elements from a model or create them if they not exist"""
+
+    model.insert_many_unique(model.name, elts_insert).execute()
+
+    elts_insert = [elt['name'] for elt in elts_insert]
+
+    list_elts = lambda x: list(model.select().where(x))
+    if elts_get and elts_insert:
+        return list_elts((model.id << elts_get) | (model.name << elts_insert))
+    elif elts_insert:
+        return list_elts(model.name << elts_insert)
+    elif elts_get:
+        return list_elts(model.id << elts_get)
+    else:
+        return []
+
+
+def ingredients_parsing(ingrs):
+    """Parse the ingredients before calling get_or_insert"""
+
+    ingrs_insert, ingrs_get = [], []
+    ingrs_id, ingrs_name = {}, {}
+
+    for ingr in ingrs:
+        ingr_id = ingr.pop('id', None)
+        ingr_name = ingr.pop('name', None)
+
+        if ingr_id:
+            ingrs_get.append(ingr_id)
+            ingrs_id[ingr_id] = ingr
+        if ingr_name:
+            ingrs_insert.append({'name': ingr_name})
+            ingrs_name[ingr_name] = ingr
+
+    db_ingrs = get_or_insert(db.models.Ingredient, ingrs_insert, ingrs_get)
+
+    # wraps again the ingredients into recipe_ingredients dict
+    for ingr in db_ingrs:
+        ingr_id = ingr.id
+        ingr_name = ingr.name
+
+        ingr_tmp = ingrs_id.get(ingr_id) or ingrs_name.get(ingr_name)
+        ingr_tmp['ingredient'] = ingr
+
+    return ingrs
+
+def utensils_parsing(utensils):
+    """Parse the utensils before calling get_or_insert"""
+    return get_or_insert(
+        db.models.Utensil,
+        [u for u in utensils if u.get('id') is None],
+        [u['id'] for u in utensils if u.get('id') is not None]
+    )
+
 # pylint: disable=too-few-public-methods
 class RecipeListAPI(flask_restful.Resource):
     """/recipes/ endpoint"""
 
-    def __init__(self):
-        self.query_compiler = peewee.QueryCompiler()
-        super(RecipeListAPI, self).__init__()
 
     # pylint: disable=no-self-use
     def get(self):
@@ -32,72 +100,10 @@ class RecipeListAPI(flask_restful.Resource):
     @db.connector.database.transaction()
     def post(self):
         """Create a recipe"""
+        # avoid race condition by locking tables
+        lock_table(db.models.Utensil)
+        lock_table(db.models.Ingredient)
 
-        # pylint: disable=protected-access
-        def parse_list(model, elements, insert_fn):
-            """Parse a model list and insert it in the dedicated table"""
-
-            if not len(elements):
-                return []
-
-            model_entity, _ = self.query_compiler._parse_entity(
-                model._as_entity(), None, None
-            )
-            lock_request = (
-                'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE' % model_entity
-            )
-
-            #protect the database table against race condition
-            db.connector.database.execute_sql(lock_request)
-            return insert_fn(elements)
-
-        def insert_ingredients(ingredients_list):
-            """Insert ingredient list into the Ingredient table and return
-            the entries
-            """
-            ingredients_dataset = []
-            ingredients_dict = {}
-            for ingredient in ingredients_list:
-                # the name is the key in ingredients_dict
-                name = ingredient.pop('name')
-                ingredients_dict[name] = ingredient
-                ingredients_dataset.append({'name': name})
-
-            if len(ingredients_dict.keys()) != len(ingredients_list):
-                raise ValueError(
-                    'There is multiple entries for the same ingredient'
-                )
-            query = db.models.Ingredient.insert_many_unique(
-                db.models.Ingredient.name, ingredients_dataset
-            )
-            query.execute()
-
-            query = (db.models.Ingredient
-                     .select()
-                     .where(
-                         db.models.Ingredient.name << ingredients_dict.keys()
-                     ))
-            for ingredient in query:
-                ingredients_dict[ingredient.name]['ingredient'] = ingredient
-            return sorted(
-                ingredients_dict.values(), key=(lambda x: x['ingredient'].id)
-            )
-
-        def insert_utensils(utensils):
-            """Insert utensils into the Utensil table and return the entries"""
-
-            # this remove duplicate keys
-            names = {utensil['name'] for utensil in utensils}
-
-            query = db.models.Utensil.insert_many_unique(
-                db.models.Utensil.name, utensils
-            )
-            query.execute()
-
-            query = (db.models.Utensil
-                     .select()
-                     .where(db.models.Utensil.name << list(names)))
-            return list(query)
         recipe = utils.helpers.parse_args(
             utils.schemas.RecipePostSchema(), flask.request.json
         )
@@ -108,13 +114,8 @@ class RecipeListAPI(flask_restful.Resource):
         if count:
             flask_restful.abort(409, message='Recipe already exists.')
 
-        ingredients = parse_list(
-            db.models.Ingredient, recipe.pop('ingredients'), insert_ingredients
-        )
-
-        utensils = parse_list(
-            db.models.Utensil, recipe.pop('utensils'), insert_utensils
-        )
+        ingredients = ingredients_parsing(recipe['ingredients'])
+        utensils = utensils_parsing(recipe['utensils'])
 
         recipe = db.models.Recipe.create(**recipe)
         recipe.ingredients = ingredients
@@ -130,6 +131,15 @@ class RecipeListAPI(flask_restful.Resource):
         return {
             'recipe': utils.schemas.RecipeSchema().dump(recipe).data
         }, 201
+
+
+    #@db.connector.database.transaction()
+    #def put(self):
+    #    recipes = utils.helpers.parse_args(
+    #        utils.schemas.RecipeListSchema(), flask.request.json
+    #    )
+    #    import ipdb; ipdb.set_trace()
+
 
 
 # pylint: disable=too-few-public-methods

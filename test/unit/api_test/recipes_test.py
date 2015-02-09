@@ -147,7 +147,9 @@ def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
     """Test post conflict /recipes/"""
 
     mock_select = mock.Mock()
+    mock_execute_sql = mock.Mock()
 
+    monkeypatch.setattr('db.connector.database.execute_sql', mock_execute_sql)
     monkeypatch.setattr('db.models.Recipe.select', mock_select)
 
     mock_select.return_value.where.return_value.count.return_value = 1
@@ -168,7 +170,7 @@ def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
     )
 
 
-def test_recipes_post_400(app, post_recipe_fixture):
+def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     """Test http error 400 possibilities"""
 
     def post(data):
@@ -176,6 +178,9 @@ def test_recipes_post_400(app, post_recipe_fixture):
         return app.post(
             '/recipes/', data=json.dumps(data), content_type='application/json'
         )
+
+    mock_execute_sql = mock.Mock()
+    monkeypatch.setattr('db.connector.database.execute_sql', mock_execute_sql)
 
     error_message = {
         'errors': {'name': ['Missing data for required field.']},
@@ -249,6 +254,44 @@ def test_recipes_post_400(app, post_recipe_fixture):
     assert recipes_create_page.status_code == 400
     assert test.utils.load(recipes_create_page) == error_message
 
+    post_recipe_fixture['ingredients'].append(
+        {'id': 1, 'measurement': 'oz', 'quantity': 1}
+    )
+    post_recipe_fixture['ingredients'].append(
+        {'id': 2, 'measurement': 'oz', 'quantity': 1}
+    )
+
+    mock_select_update_elts = mock.Mock()
+    (mock_select_update_elts.return_value
+     .where.return_value
+     .dicts.return_value) = [{'name': 'ingredient_3'}]
+
+    monkeypatch.setattr('db.models.Ingredient.select', mock_select_update_elts)
+
+    error_message['errors']['ingredients'] = [
+        'There is some entries to update which does not exist.'
+    ]
+
+    recipes_create_page = post(post_recipe_fixture)
+
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+    dicts_return_value = [{'name': 'ingredient_1'}, {'name': 'ingredient_3'}]
+
+    (mock_select_update_elts.return_value
+     .where.return_value
+     .dicts.return_value) = dicts_return_value
+
+    error_message['errors']['ingredients'] = [
+        'There is multiple entries for the same entity.'
+    ]
+
+    recipes_create_page = post(post_recipe_fixture)
+
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
     post_recipe_fixture['ingredients'][0]['measurement'] = 'error'
     recipes_create_page = post(post_recipe_fixture)
 
@@ -263,13 +306,8 @@ def test_recipes_post_400(app, post_recipe_fixture):
     post_recipe_fixture['ingredients'][0].pop('measurement')
     recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['ingredients']['measurement'] = [
-        'Missing data for required field if \'id\' field is not provided.'
+        'Missing data for required field.'
     ]
-    error_message['errors']['ingredients']['id'] = [
-        'Missing data for required field if \'measurement, name, quantity\' '
-        'fields are not provided.'
-    ]
-
     assert recipes_create_page.status_code == 400
     assert test.utils.load(recipes_create_page) == error_message
 
@@ -286,7 +324,7 @@ def test_recipes_post_400(app, post_recipe_fixture):
     post_recipe_fixture['ingredients'][0].pop('quantity')
     recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['ingredients']['quantity'] = [
-        'Missing data for required field if \'id\' field is not provided.'
+        'Missing data for required field.'
     ]
 
     assert recipes_create_page.status_code == 400
@@ -298,6 +336,41 @@ def test_recipes_post_400(app, post_recipe_fixture):
     error_message['errors']['ingredients']['name'] = [
         'Missing data for required field if \'id\' field is not provided.'
     ]
+    error_message['errors']['ingredients']['id'] = [
+        'Missing data for required field if \'name\' field is not provided.'
+    ]
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+    post_recipe_fixture['utensils'].append({'id': 1})
+    post_recipe_fixture['utensils'].append({'id': 2})
+
+    mock_select_update_elts = mock.Mock()
+    (mock_select_update_elts.return_value
+     .where.return_value
+     .dicts.return_value) = [{'name': 'utensil_3'}]
+
+    monkeypatch.setattr('db.models.Utensil.select', mock_select_update_elts)
+
+    error_message['errors']['utensils'] = [
+        'There is some entries to update which does not exist.'
+    ]
+
+    recipes_create_page = post(post_recipe_fixture)
+
+    assert recipes_create_page.status_code == 400
+    assert test.utils.load(recipes_create_page) == error_message
+
+    (mock_select_update_elts.return_value
+     .where.return_value
+     .dicts.return_value) = [{'name': 'utensil_1'}, {'name': 'utensil_3'}]
+
+    error_message['errors']['utensils'] = [
+        'There is multiple entries for the same entity.'
+    ]
+
+    recipes_create_page = post(post_recipe_fixture)
+
     assert recipes_create_page.status_code == 400
     assert test.utils.load(recipes_create_page) == error_message
 
@@ -308,8 +381,7 @@ def test_recipes_post_400(app, post_recipe_fixture):
         'Missing data for required field if \'id\' field is not provided.'
     ]
     error_message['errors']['utensils']['id'] = [
-        'Missing data for required field if \'name\' '
-        'fields are not provided.'
+        'Missing data for required field if \'name\' field is not provided.'
     ]
     assert recipes_create_page.status_code == 400
     assert test.utils.load(recipes_create_page) == error_message
@@ -349,6 +421,7 @@ def test_recipes_post_400(app, post_recipe_fixture):
 
     assert recipes_create_page.status_code == 400
     assert test.utils.load(recipes_create_page) == error_message
+
 
     post_recipe_fixture.pop('ingredients')
     recipes_create_page = post(post_recipe_fixture)

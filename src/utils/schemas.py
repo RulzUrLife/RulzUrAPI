@@ -5,6 +5,8 @@ import marshmallow
 import marshmallow.exceptions
 import marshmallow.validate
 
+import db.models
+
 # pylint: disable=too-few-public-methods
 class DefaultSchema(marshmallow.Schema):
     """Default configuration for a Schema
@@ -43,45 +45,27 @@ class NestedSchema(marshmallow.Schema):
     If an object is nested the method can either be a post or a put, that is
     why we have a custom validation here.
 
-    First no field is required, then, we check if all attributes are provided
-    or if the id one is present. If not, an error is raised.
+    First no field is required, then, we check if 'id' or 'name' field is
+    provided. If not, an error is raised.
     """
     id = marshmallow.fields.Integer()
+    name = marshmallow.fields.String()
 
     def __init__(self, *args, **kwargs):
         super(NestedSchema, self).__init__(*args, **kwargs)
-        def validate_nested(field, _, data):
-            """Validator function for a specific field
 
-            Provide a message if the field is missing and the 'id' is not
-            provided
-            """
+        def validate_nested(field, needed_field, _, data):
+            """Utility function for generating error messages"""
 
-            if 'id' in data or field in data:
+            if 'id' in data or 'name' in data:
                 return
             raise marshmallow.ValidationError(
-                'Missing data for required field if \'id\' field is not '
-                'provided.',
-                field
+                'Missing data for required field if \'%s\' field is not '
+                'provided.' % needed_field, field
             )
 
-        def validate_nested_id(fields, _, data):
-            """Validator function for the id field
-
-            same as validate nested but the message is different
-            """
-            if 'id' in data or all([field in data for field in fields]):
-                return
-            raise marshmallow.ValidationError(
-                'Missing data for required field if \'%s\' fields are not '
-                'provided.' % ', '.join(sorted(fields)), 'id'
-            )
-
-        fields = [key for key in self.fields.keys() if key != 'id']
-
-        self.validator(functools.partial(validate_nested_id, fields))
-        for field in fields:
-            self.validator(functools.partial(validate_nested, field))
+        self.validator(functools.partial(validate_nested, 'id', 'name'))
+        self.validator(functools.partial(validate_nested, 'name', 'id'))
 
 
 # pylint: disable=too-few-public-methods
@@ -133,11 +117,14 @@ class IngredientPostSchema(PostSchema, IngredientSchema):
 # pylint: disable=too-few-public-methods
 class RecipeIngredientsSchema(NestedSchema, DefaultSchema):
     """Ingredient nested schema for recipe"""
-    name = marshmallow.fields.String()
     quantity = marshmallow.fields.Integer(
-        validate=marshmallow.validate.Range(0)
+        validate=marshmallow.validate.Range(0),
+        required=True
     )
-    measurement = marshmallow.fields.Select(['L', 'g', 'oz', 'spoon'])
+    measurement = marshmallow.fields.Select(
+        ['L', 'g', 'oz', 'spoon'],
+        required=True
+    )
 
     def dump(self, obj, *args, **kwargs):
         """The entity has the ingredient nested, so it needs to be merged"""
@@ -150,7 +137,39 @@ class RecipeIngredientsSchema(NestedSchema, DefaultSchema):
 # pylint: disable=too-few-public-methods
 class RecipeUtensilsSchema(NestedSchema, DefaultSchema):
     """Utensil nested schema for recipe"""
-    name = marshmallow.fields.String()
+    pass
+
+
+def validate_unique(model, field, elts):
+    """Validate if an entry is unique
+
+    Checks against the db if all the elements with ids exist and if all the
+    elements are unique (no redundancy)
+    """
+    insert_elts = [elt for elt in elts if elt.get('id') is None]
+    update_elts = [elt['id'] for elt in elts if elt.get('id') is not None]
+
+    # check if all the elements are unique by name
+
+    # avoid running the request if no elements
+    if update_elts:
+        update_elts_count = len(update_elts)
+        update_elts = list(model
+                           .select(model.name)
+                           .where(model.id << update_elts)
+                           .dicts())
+        if update_elts_count != len(update_elts):
+            raise marshmallow.ValidationError(
+                'There is some entries to update which does not exist.'
+            )
+
+
+    elts_tmp = {elt['name'] for elt in update_elts + insert_elts}
+
+    if len(elts_tmp) != len(elts):
+        raise marshmallow.ValidationError(
+            'There is multiple entries for the same entity.', field
+        )
 
 
 # pylint: disable=too-few-public-methods
@@ -173,10 +192,26 @@ class RecipeSchema(DefaultSchema):
         'starter', 'main', 'dessert'
     ])
     ingredients = marshmallow.fields.List(
-        marshmallow.fields.Nested(RecipeIngredientsSchema)
+        marshmallow.fields.Nested(RecipeIngredientsSchema),
+        validate=functools.partial(
+            validate_unique, db.models.Ingredient, 'ingredients'
+        )
     )
     utensils = marshmallow.fields.List(
-        marshmallow.fields.Nested(RecipeUtensilsSchema)
+        marshmallow.fields.Nested(RecipeUtensilsSchema),
+        validate=functools.partial(
+            validate_unique, db.models.Utensil, 'utensils'
+        )
+    )
+
+# pylint: disable=too-few-public-methods
+class RecipeListSchema(marshmallow.Schema):
+    """RecipeList schema, this is for a bulk update.
+
+    We need a list of recipes with the arguments of the put method
+    """
+    recipes = marshmallow.fields.List(
+        marshmallow.fields.Nested(RecipeSchema), required=True
     )
 
 
