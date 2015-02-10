@@ -52,11 +52,17 @@ def test_recipe_get_404(app, monkeypatch):
 def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     """Test post /ingredients/"""
 
-    ingredients, ingredients_mock = [], []
-    utensils, utensils_mock = [], []
+
+    # prepare the returned object to check against the test
     recipe_mock = copy.deepcopy(post_recipe_fixture)
     recipe_mock['id'] = 1
+
     recipe_mock = test.utils.FakeModel(recipe_mock)
+
+    # prepare the nested tests, the first element will be used for checking
+    # the insertion, the second one will be the result (it adds the id field)
+    ingredients, ingredients_mock = [], []
+    utensils, utensils_mock = [], []
 
     for i, ingredient in enumerate(post_recipe_fixture['ingredients']):
         ingredients.append({'name': ingredient['name']})
@@ -70,20 +76,65 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
             test.utils.FakeModel({'id': i + 1, 'name': utensil['name']})
         )
 
+
+    # add existing ingredients and utensils, to test validation
+    post_recipe_fixture['ingredients'].append(
+        {'id': 3, 'measurement': 'L', 'quantity': 1}
+    )
+    post_recipe_fixture['utensils'].append({'id': 3})
+
+    utensils_select = [{'name': 'utensil_3'}]
+    ingredients_select = [{'name': 'ingredient_3'}]
+
+    ingredients_mock.append(
+        test.utils.FakeModel({'id': 3, 'name': 'ingredient_3'})
+    )
+    utensils_mock.append(
+        test.utils.FakeModel({'id': 3, 'name': 'utensil_3'})
+    )
+
+
+    # prepare some mock for recipe workflow
     mock_execute_sql = mock.Mock()
-
-    mock_recipe_select = mock.Mock()
     mock_recipe_create = mock.Mock()
+    mock_recipe_select = mock.Mock()
 
+
+    # the nested fields will use two requests, the first one for validation,
+    # the second one to populate the created recipe
+
+    ingredient_validate, ingredient_select = mock.Mock(), mock.Mock()
+    utensil_validate, utensil_select = mock.Mock(), mock.Mock()
+
+    (ingredient_validate.return_value
+     .where.return_value
+     .dicts.return_value) = ingredients_select
+    (ingredient_select.return_value
+     .where.return_value) = ingredients_mock
+
+    (utensil_validate.return_value
+     .where.return_value
+     .dicts.return_value) = utensils_select
+    (utensil_select.return_value
+     .where.return_value) = utensils_mock
+
+
+    mock_ingredient_select = mock.Mock(
+        side_effect=iter([ingredient_validate(), ingredient_select()])
+    )
+
+    mock_utensil_select = mock.Mock(
+        side_effect=iter([utensil_validate(), utensil_select()])
+    )
+
+    # mock the other methods
     mock_ingredient_insert = mock.Mock()
-    mock_ingredient_select = mock.Mock()
-
     mock_utensil_insert = mock.Mock()
-    mock_utensil_select = mock.Mock()
 
     mock_recipe_utensils_insert = mock.Mock()
     mock_recipe_ingredients_insert = mock.Mock()
 
+    # monkeypatch all the things! o/
     monkeypatch.setattr('db.connector.database.execute_sql', mock_execute_sql)
     monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
     monkeypatch.setattr('db.models.Recipe.create', mock_recipe_create)
@@ -103,15 +154,65 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
         mock_recipe_ingredients_insert
     )
 
+    # mock the recipes methods
     mock_recipe_select.return_value.where.return_value.count.return_value = 0
     mock_recipe_create.return_value = recipe_mock
-    mock_ingredient_select.return_value.where.return_value = ingredients_mock
-    mock_utensil_select.return_value.where.return_value = utensils_mock
 
+
+    # go, go, go
     recipes_create_page = app.post(
         '/recipes/', data=json.dumps(post_recipe_fixture),
         content_type='application/json'
     )
+
+    # check if the tables are correctly locked
+    # WARN! the use of a string for the schema is not a good practice
+    utensil_lock = mock.call(
+        'LOCK TABLE "rulzurkitchen"."utensil" IN SHARE ROW EXCLUSIVE MODE'
+    )
+    ingredient_lock = mock.call(
+        'LOCK TABLE "rulzurkitchen"."ingredient" IN SHARE ROW EXCLUSIVE MODE'
+    )
+    assert mock_execute_sql.call_args_list == [utensil_lock, ingredient_lock]
+
+    # check if the recipes are checked to avoid conflict
+    assert mock_recipe_select.call_count == 1
+    assert test.utils.expression_assert(
+        mock_recipe_select.return_value.where,
+        peewee.Expression(
+            db.models.Recipe.name, '=', post_recipe_fixture.get('name')
+        )
+    )
+
+    # check if the utensils or ingredients to update exists and if they are not
+    # redundant in the same request
+
+    # it has been called two times, one for the validation, one for the return
+    assert mock_ingredient_select.call_count == 2
+    assert test.utils.expression_assert(
+        mock_ingredient_select, db.models.Ingredient.name
+    )
+    assert mock_ingredient_select.call_args_list[1] == mock.call()
+    assert test.utils.expression_assert(
+        ingredient_validate.return_value.where,
+        peewee.Expression(
+            db.models.Ingredient.id, peewee.OP_IN, [3]
+        )
+    )
+
+    assert mock_utensil_select.call_count == 2
+    assert test.utils.expression_assert(
+        mock_utensil_select, db.models.Utensil.name
+    )
+    assert mock_utensil_select.call_args_list[1] == mock.call()
+    assert test.utils.expression_assert(
+        utensil_validate.return_value.where,
+        peewee.Expression(
+            db.models.Utensil.id, peewee.OP_IN, [3]
+        )
+    )
+
+    # insertion into the tables of the nested fields
     execute = mock_ingredient_insert.return_value.execute
     assert mock_ingredient_insert.call_count == 1
     assert mock_ingredient_insert.call_args == mock.call(

@@ -18,9 +18,9 @@ class FakeModel(object):
         return self.data
 
 
-def expression_assert(fn, expression):
+def expression_assert(fn, expression, pos=0):
     """Compare the first argument with the expression __dict__"""
-    (expression_arg,), _ = fn.call_args
+    (expression_arg,), _ = fn.call_args_list[pos]
     return expression_arg.__dict__ == expression.__dict__
 
 def load(page):
