@@ -1,7 +1,7 @@
 """API utensils endpoint testing"""
 import json
 import peewee
-import mock
+import unittest.mock as mock
 import db.models
 import test.utils
 

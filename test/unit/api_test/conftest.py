@@ -1,6 +1,6 @@
 """Configuration and fixture for api testing"""
 import pytest
-import mock
+import unittest.mock as mock
 import types
 
 @pytest.fixture
