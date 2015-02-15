@@ -1,8 +1,7 @@
 """API utensils entrypoints"""
 
-import flask_restful
-import flask_restful.reqparse
 import flask
+import flask_restful
 import db.models
 import db.connector
 import utils.helpers
@@ -15,7 +14,7 @@ def get_utensil(utensil_id):
     try:
         return db.models.Utensil.get(db.models.Utensil.id == utensil_id)
     except peewee.DoesNotExist:
-        flask_restful.abort(404)
+        raise utils.helpers.APIException('Utensil not found', 404)
 
 class UtensilListAPI(flask_restful.Resource):
     """/utensils/ endpoint"""
@@ -28,37 +27,37 @@ class UtensilListAPI(flask_restful.Resource):
     @db.connector.database.transaction()
     def post(self):
         """Create an utensil"""
-        utensil = utils.helpers.parse_args(
-            utils.schemas.UtensilPostSchema(), flask.request.json
+        utensil = utils.helpers.raise_or_return(
+            utils.schemas.utensil_schema_post, flask.request.json
         )
 
         try:
             utensil = db.models.Utensil.create(**utensil)
         except peewee.IntegrityError:
             flask_restful.abort(409, message='Utensil already exists')
-        return (
-            {'utensil': utils.schemas.UtensilSchema().dump(utensil).data}, 201
-        )
+
+        utensil, _ = utils.schemas.utensil_schema.dump(utensil)
+        return {'utensil': utensil}, 201
 
     @db.connector.database.transaction()
     def put(self):
         """Update multiple utensils"""
         utensils = []
-        data = utils.helpers.parse_args(
-            utils.schemas.UtensilListSchema(), flask.request.json
+
+        data = utils.helpers.raise_or_return(
+            utils.schemas.utensil_schema_list, flask.request.json
         )
 
         for utensil in data['utensils']:
             utensil_id = utensil.pop('id')
             try:
                 utensils.append(
-                    next(db.models.Utensil
-                         .update(returning=True, **utensil)
-                         .where(db.models.Utensil.id == utensil_id)
-                         .dicts()
-                         .execute())
-                )
-
+                    db.models.Utensil
+                    .update(**utensil)
+                    .where(db.models.Utensil.id == utensil_id)
+                    .returning()
+                    .dicts()
+                    .execute())
             except StopIteration:
                 pass
 
@@ -70,29 +69,28 @@ class UtensilAPI(flask_restful.Resource):
     # pylint: disable=no-self-use
     def get(self, utensil_id):
         """Provide the utensil for utensil_id"""
-        return {
-            'utensil': utils.schemas.UtensilSchema().dump(
-                get_utensil(utensil_id)
-            ).data
-        }
+        utensil, _ = utils.schemas.utensil_schema.dump(get_utensil(utensil_id))
+
+        return {'utensil': utensil}
 
     @db.connector.database.transaction()
     def put(self, utensil_id):
         """Update the utensil for utensil_id"""
 
-        utensil = utils.helpers.parse_args(
-            utils.schemas.UtensilSchema(exclude=('id',)), flask.request.json
+        utensil = utils.helpers.raise_or_return(
+            utils.schemas.utensil_schema_put, flask.request.json
         )
 
         try:
-            return next(db.models.Utensil
-                        .update(returning=True, **utensil)
-                        .where(db.models.Utensil.id == utensil_id)
-                        .dicts()
-                        .execute())
+            return (db.models.Utensil
+                    .update(**utensil)
+                    .where(db.models.Utensil.id == utensil_id)
+                    .returning()
+                    .dicts()
+                    .execute())
 
         except StopIteration:
-            flask_restful.abort(404)
+            raise utils.helpers.APIException('Utensil not found', 404)
 
 
 # pylint: disable=too-few-public-methods

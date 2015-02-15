@@ -19,11 +19,12 @@ class BaseModel(peewee.Model):
         """Return the private attribute _data"""
         return self._data
 
+
     @classmethod
-    def update(cls, returning=False, **update):
-        # pylint: disable=no-member
+    # pylint: disable=no-member
+    def update(cls, **update):
         fdict = dict((cls._meta.fields[f], v) for f, v in update.items())
-        return db.orm.UpdateQuery(cls, update=fdict, returning=returning)
+        return db.orm.UpdateQuery(cls, update=fdict)
 
     @classmethod
     def insert_many(cls, rows):

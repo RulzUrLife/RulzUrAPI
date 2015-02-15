@@ -1,5 +1,6 @@
 """Helpers for rulzurapi"""
 import flask
+import peewee
 
 class APIException(Exception):
     """Exception for the API, customize error output"""
@@ -17,26 +18,33 @@ class APIException(Exception):
         """This method dump the exception into a dict for jsonify"""
         rv = dict(self.payload or ())
         rv['message'] = self.message
+        rv['status'] = self.status_code
         return rv
-
-def parse_args(loader_fn, json, message=None):
-    """Helpers for parsing args
-
-    Raise an APIException if parsing errors are detected
-    """
-    if message is None:
-        message = 'Request malformed'
-
-    data, errors = loader_fn.load(json)
-    if len(errors):
-        raise APIException(message, payload={'errors': errors})
-
-    return data
-
 
 def jsonify_api_exception(api_exception):
     """Return an http response wrapping an APIException"""
     response = flask.jsonify(api_exception.to_dict())
     response.status_code = api_exception.status_code
     return response
+
+def raise_or_return(schema, data):
+    """Load the data in a dict, if errors are returned, an error is raised"""
+    data, errors = schema.load(data)
+    if errors:
+        raise APIException('Request malformed', 400, {'errors': errors})
+
+    return data
+
+# pylint: disable=protected-access
+def model_entity(model):
+    """Retrieve the entity of a specific model
+
+    ie: "schema"."table"
+    """
+    query_compiler = peewee.QueryCompiler()
+    me, _ = query_compiler._parse_entity(
+        model._as_entity(), None, None
+    )
+    return me
+
 

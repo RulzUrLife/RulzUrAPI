@@ -7,6 +7,7 @@ import marshmallow.validate
 
 import db.models
 
+
 # pylint: disable=too-few-public-methods
 class DefaultSchema(marshmallow.Schema):
     """Default configuration for a Schema
@@ -128,9 +129,18 @@ class RecipeIngredientsSchema(NestedSchema, DefaultSchema):
 
     def dump(self, obj, *args, **kwargs):
         """The entity has the ingredient nested, so it needs to be merged"""
-        ingredient = obj.pop('ingredient')
-        ingredient = IngredientSchema().dump(ingredient).data
-        obj.update(ingredient)
+
+        # handle both dict or object
+        if isinstance(obj, dict):
+            ingredient = obj['ingredient']
+            ingredient = IngredientSchema().dump(ingredient).data
+            obj.update(ingredient)
+        else:
+            ingredient = obj.ingredient
+            ingredient = IngredientSchema().dump(ingredient).data
+            for key, value in ingredient.items():
+                setattr(obj, key, value)
+
         return super(RecipeIngredientsSchema, self).dump(obj, *args, **kwargs)
 
 
@@ -204,6 +214,22 @@ class RecipeSchema(DefaultSchema):
         )
     )
 
+def validate_recipes(recipes):
+    """Checks if all the recipes in the request exist in the db"""
+    ids = [recipe['id'] for recipe in recipes]
+    db_recipes_count = (
+        db.models.Recipe
+        .select()
+        .where(db.models.Recipe.id << ids)
+        .count()
+    )
+
+    if len(recipes) != db_recipes_count:
+        raise marshmallow.ValidationError(
+            'One recipe or more do not match the database entries'
+        )
+
+
 # pylint: disable=too-few-public-methods
 class RecipeListSchema(marshmallow.Schema):
     """RecipeList schema, this is for a bulk update.
@@ -211,7 +237,8 @@ class RecipeListSchema(marshmallow.Schema):
     We need a list of recipes with the arguments of the put method
     """
     recipes = marshmallow.fields.List(
-        marshmallow.fields.Nested(RecipeSchema), required=True
+        marshmallow.fields.Nested(RecipeSchema), required=True,
+        validate=validate_recipes
     )
 
 
@@ -220,3 +247,15 @@ class RecipePostSchema(PostSchema, RecipeSchema):
     """Schema for recipe post arguments"""
     pass
 
+utensil_schema = UtensilSchema()
+utensil_schema_put = UtensilSchema(exclude=('id',))
+utensil_schema_post = UtensilPostSchema()
+utensil_schema_list = UtensilListSchema()
+
+ingredient_schema = IngredientSchema()
+ingredient_schema_put = IngredientSchema(exclude=('id',))
+ingredient_schema_post = IngredientPostSchema()
+ingredient_schema_list = IngredientListSchema()
+
+recipe_schema_post = RecipePostSchema()
+recipe_schema_list = RecipeListSchema()

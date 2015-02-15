@@ -1,11 +1,16 @@
 """API ingredients entrypoints"""
+
 import flask
 import flask_restful
+
+import peewee
+
 import db.models
+import db.connector
+
 import utils.helpers
 import utils.schemas
 
-import peewee
 
 def get_ingredient(ingredient_id):
     """Get a specific ingredient or raise 404 if it does not exists"""
@@ -14,9 +19,8 @@ def get_ingredient(ingredient_id):
             db.models.Ingredient.id == ingredient_id
         )
     except peewee.DoesNotExist:
-        flask_restful.abort(404)
+        raise utils.helpers.APIException('Ingredient not found', 404)
 
-# pylint: disable=too-few-public-methods
 class IngredientListAPI(flask_restful.Resource):
     """/ingredients/ endpoint"""
 
@@ -25,40 +29,40 @@ class IngredientListAPI(flask_restful.Resource):
         """List all ingredients"""
         return {'ingredients': list(db.models.Ingredient.select().dicts())}
 
+    @db.connector.database.transaction()
     def post(self):
         """Create an ingredient"""
-        ingredient = utils.helpers.parse_args(
-            utils.schemas.IngredientPostSchema(), flask.request.json
+        ingredient = utils.helpers.raise_or_return(
+            utils.schemas.ingredient_schema_post, flask.request.json
         )
 
         try:
             ingredient = db.models.Ingredient.create(**ingredient)
         except peewee.IntegrityError:
-            flask_restful.abort(409, message='Ingredient already exists')
+            raise utils.helpers.APIException('Ingredient already exists', 409)
 
-        ingredient = utils.schemas.IngredientSchema().dump(ingredient).data
-        return (
-            {'ingredient': ingredient}, 201
-        )
+        ingredient, _ = utils.schemas.ingredient_schema.dump(ingredient)
+        return {'ingredient': ingredient}, 201
 
     @db.connector.database.transaction()
     def put(self):
         """Update multiple ingredients"""
         ingredients = []
-        data = utils.helpers.parse_args(
-            utils.schemas.IngredientListSchema(), flask.request.json
+
+        data = utils.helpers.raise_or_return(
+            utils.schemas.ingredient_schema_list, flask.request.json
         )
 
         for ingredient in data['ingredients']:
             ingredient_id = ingredient.pop('id')
             try:
                 ingredients.append(
-                    next(db.models.Ingredient
-                         .update(returning=True, **ingredient)
-                         .where(db.models.Ingredient.id == ingredient_id)
-                         .dicts()
-                         .execute())
-                )
+                    db.models.Ingredient
+                    .update(**ingredient)
+                    .where(db.models.Ingredient.id == ingredient_id)
+                    .returning()
+                    .dicts()
+                    .execute())
             except StopIteration:
                 pass
 
@@ -71,30 +75,28 @@ class IngredientAPI(flask_restful.Resource):
     # pylint: disable=no-self-use
     def get(self, ingredient_id):
         """Provide the ingredient for ingredient_id"""
-        return {
-            'ingredient': utils.schemas.IngredientSchema().dump(
-                get_ingredient(ingredient_id)
-            ).data
-        }
+        ingredient, _ = utils.schemas.ingredient_schema.dump(
+            get_ingredient(ingredient_id)
+        )
+        return {'ingredient': ingredient}
 
     @db.connector.database.transaction()
     def put(self, ingredient_id):
         """Update the ingredient for ingredient_id"""
-        ingredient = utils.helpers.parse_args(
-            utils.schemas.IngredientSchema(exclude=('id',)), flask.request.json
+        ingredient = utils.helpers.raise_or_return(
+            utils.schemas.ingredient_schema_put, flask.request.json
         )
 
         try:
-            return next(
-                db.models.Ingredient
-                .update(returning=True, **ingredient)
-                .where(db.models.Ingredient.id == ingredient_id)
-                .dicts()
-                .execute()
-            )
+            return (db.models.Ingredient
+                    .update(**ingredient)
+                    .where(db.models.Ingredient.id == ingredient_id)
+                    .returning()
+                    .dicts()
+                    .execute())
 
         except StopIteration:
-            flask_restful.abort(404)
+            raise utils.helpers.APIException('Utensil not found', 404)
 
 
 # pylint: disable=too-few-public-methods

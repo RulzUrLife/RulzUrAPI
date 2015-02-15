@@ -5,7 +5,8 @@ import json
 import peewee
 import unittest.mock as mock
 import db.models
-import test.utils
+import test.utils as utils
+import utils.helpers as helpers
 
 def test_recipes_list(app, monkeypatch):
     """Test /recipes/"""
@@ -20,22 +21,24 @@ def test_recipes_list(app, monkeypatch):
     monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
     recipes_page = app.get('/recipes/')
     mock_recipe_select.assert_called_once_with()
-    assert test.utils.load(recipes_page) == {'recipes': recipes}
+    assert utils.load(recipes_page) == {'recipes': recipes}
+
 
 def test_recipe_get(app, monkeypatch):
     """Test /recipes/<id>"""
 
     recipe = {'recipe_1': 'recipe_1_content'}
 
-    mock_recipe_get = mock.Mock(return_value=test.utils.FakeModel(recipe))
+    mock_recipe_get = mock.Mock(return_value=utils.FakeModel(recipe))
     monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
     recipe_page = app.get('/recipes/1')
 
     assert mock_recipe_get.call_count == 1
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         mock_recipe_get, peewee.Expression(db.models.Ingredient.id, '=', 1)
     )
-    assert test.utils.load(recipe_page) == {'recipe': recipe}
+    assert utils.load(recipe_page) == {'recipe': recipe}
+
 
 
 def test_recipe_get_404(app, monkeypatch):
@@ -48,6 +51,7 @@ def test_recipe_get_404(app, monkeypatch):
     recipe = app.get('/recipes/2')
     assert recipe.status_code == 404
 
+
 # pylint: disable=too-many-statements, too-many-locals
 def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     """Test post /ingredients/"""
@@ -57,7 +61,7 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     recipe_mock = copy.deepcopy(post_recipe_fixture)
     recipe_mock['id'] = 1
 
-    recipe_mock = test.utils.FakeModel(recipe_mock)
+    recipe_mock = utils.FakeModel(recipe_mock)
 
     # prepare the nested tests, the first element will be used for checking
     # the insertion, the second one will be the result (it adds the id field)
@@ -67,13 +71,13 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     for i, ingredient in enumerate(post_recipe_fixture['ingredients']):
         ingredients.append({'name': ingredient['name']})
         ingredients_mock.append(
-            test.utils.FakeModel({'id': i + 1, 'name': ingredient['name']})
+            utils.FakeModel({'id': i + 1, 'name': ingredient['name']})
         )
 
     for i, utensil in enumerate(post_recipe_fixture['utensils']):
         utensils.append({'name': utensil['name']})
         utensils_mock.append(
-            test.utils.FakeModel({'id': i + 1, 'name': utensil['name']})
+            utils.FakeModel({'id': i + 1, 'name': utensil['name']})
         )
 
 
@@ -87,10 +91,10 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     ingredients_select = [{'name': 'ingredient_3'}]
 
     ingredients_mock.append(
-        test.utils.FakeModel({'id': 3, 'name': 'ingredient_3'})
+        utils.FakeModel({'id': 3, 'name': 'ingredient_3'})
     )
     utensils_mock.append(
-        test.utils.FakeModel({'id': 3, 'name': 'utensil_3'})
+        utils.FakeModel({'id': 3, 'name': 'utensil_3'})
     )
 
 
@@ -166,18 +170,18 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     )
 
     # check if the tables are correctly locked
-    # WARN! the use of a string for the schema is not a good practice
-    utensil_lock = mock.call(
-        'LOCK TABLE "rulzurkitchen"."utensil" IN SHARE ROW EXCLUSIVE MODE'
-    )
-    ingredient_lock = mock.call(
-        'LOCK TABLE "rulzurkitchen"."ingredient" IN SHARE ROW EXCLUSIVE MODE'
-    )
+    lock_string = 'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE'
+    lock_utensil = lock_string % helpers.model_entity(db.models.Utensil)
+    lock_ingredient = lock_string % helpers.model_entity(db.models.Ingredient)
+
+    utensil_lock = mock.call(lock_utensil)
+    ingredient_lock = mock.call(lock_ingredient)
+
     assert mock_execute_sql.call_args_list == [utensil_lock, ingredient_lock]
 
     # check if the recipes are checked to avoid conflict
     assert mock_recipe_select.call_count == 1
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         mock_recipe_select.return_value.where,
         peewee.Expression(
             db.models.Recipe.name, '=', post_recipe_fixture.get('name')
@@ -189,11 +193,11 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
 
     # it has been called two times, one for the validation, one for the return
     assert mock_ingredient_select.call_count == 2
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         mock_ingredient_select, db.models.Ingredient.name
     )
     assert mock_ingredient_select.call_args_list[1] == mock.call()
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         ingredient_validate.return_value.where,
         peewee.Expression(
             db.models.Ingredient.id, peewee.OP_IN, [3]
@@ -201,11 +205,11 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     )
 
     assert mock_utensil_select.call_count == 2
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         mock_utensil_select, db.models.Utensil.name
     )
     assert mock_utensil_select.call_args_list[1] == mock.call()
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         utensil_validate.return_value.where,
         peewee.Expression(
             db.models.Utensil.id, peewee.OP_IN, [3]
@@ -240,9 +244,10 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 201
-    assert test.utils.load(recipes_create_page) == {
+    assert utils.load(recipes_create_page) == {
         'recipe': post_recipe_fixture
     }
+
 
 def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
     """Test post conflict /recipes/"""
@@ -259,15 +264,15 @@ def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
         content_type='application/json'
     )
 
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         mock_select.return_value.where,
         peewee.Expression(
             db.models.Recipe.name, '=', post_recipe_fixture.get('name')
         )
     )
     assert recipes_create_page.status_code == 409
-    assert test.utils.load(recipes_create_page) == (
-        {'message': 'Recipe already exists.'}
+    assert utils.load(recipes_create_page) == (
+        {'message': 'Recipe already exists.', 'status': 409}
     )
 
 
@@ -285,26 +290,27 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
 
     error_message = {
         'errors': {'name': ['Missing data for required field.']},
-        'message': 'Request malformed'
+        'message': 'Request malformed',
+        'status': 400
     }
     post_recipe_fixture.pop('name')
     recipes_create_page = post(post_recipe_fixture)
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['difficulty'] = 0
     recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['difficulty'] = ['Must be between 1 and 5.']
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['difficulty'] = 6
     recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['difficulty'] = ['Must be between 1 and 5.']
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('difficulty')
@@ -314,7 +320,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture['people'] = 0
@@ -322,14 +328,14 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     error_message['errors']['people'] = ['Must be between 1 and 12.']
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['people'] = 13
     recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['people'] = ['Must be between 1 and 12.']
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('people')
@@ -337,7 +343,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     error_message['errors']['people'] = ['Missing data for required field.']
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['duration'] = 'error'
     recipes_create_page = post(post_recipe_fixture)
@@ -345,7 +351,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
         '\'error\' is not a valid choice for this field.'
     ]
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('duration')
@@ -353,7 +359,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     error_message['errors']['duration'] = ['Missing data for required field.']
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['ingredients'].append(
         {'id': 1, 'measurement': 'oz', 'quantity': 1}
@@ -376,7 +382,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     recipes_create_page = post(post_recipe_fixture)
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     dicts_return_value = [{'name': 'ingredient_1'}, {'name': 'ingredient_3'}]
 
@@ -391,7 +397,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     recipes_create_page = post(post_recipe_fixture)
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['ingredients'][0]['measurement'] = 'error'
     recipes_create_page = post(post_recipe_fixture)
@@ -402,7 +408,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['ingredients'][0].pop('measurement')
     recipes_create_page = post(post_recipe_fixture)
@@ -410,7 +416,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
         'Missing data for required field.'
     ]
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['ingredients'][0]['quantity'] = -1
 
@@ -420,7 +426,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['ingredients'][0].pop('quantity')
     recipes_create_page = post(post_recipe_fixture)
@@ -429,7 +435,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture['ingredients'][0].pop('name')
@@ -441,7 +447,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
         'Missing data for required field if \'name\' field is not provided.'
     ]
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['utensils'].append({'id': 1})
     post_recipe_fixture['utensils'].append({'id': 2})
@@ -460,7 +466,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     recipes_create_page = post(post_recipe_fixture)
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     (mock_select_update_elts.return_value
      .where.return_value
@@ -473,7 +479,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     recipes_create_page = post(post_recipe_fixture)
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture['utensils'][0].pop('name')
     recipes_create_page = post(post_recipe_fixture)
@@ -485,7 +491,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
         'Missing data for required field if \'name\' field is not provided.'
     ]
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture['category'] = 'error'
@@ -495,14 +501,14 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture.pop('category')
     recipes_create_page = post(post_recipe_fixture)
     error_message['errors']['category'] = ['Missing data for required field.']
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('directions')
@@ -512,7 +518,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
     post_recipe_fixture.pop('utensils')
     recipes_create_page = post(post_recipe_fixture)
@@ -521,7 +527,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
     post_recipe_fixture.pop('ingredients')
@@ -531,7 +537,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 400
-    assert test.utils.load(recipes_create_page) == error_message
+    assert utils.load(recipes_create_page) == error_message
 
 
 def test_recipe_get_ingredients(app, monkeypatch):
@@ -557,7 +563,7 @@ def test_recipe_get_ingredients(app, monkeypatch):
 
 
     assert mock_recipe_get.call_count == 1
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         mock_recipe_get, peewee.Expression(db.models.Recipe.id, '=', 1)
     )
 
@@ -574,11 +580,11 @@ def test_recipe_get_ingredients(app, monkeypatch):
 
     where = join.return_value.where
     assert where.call_count == 1
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         where, peewee.Expression(db.models.RecipeIngredients.recipe, '=', 1)
     )
 
-    assert test.utils.load(ingredients_page) == {'ingredients': ingredients}
+    assert utils.load(ingredients_page) == {'ingredients': ingredients}
 
 
 def test_recipe_get_ingredients_404(app, monkeypatch):
@@ -590,6 +596,7 @@ def test_recipe_get_ingredients_404(app, monkeypatch):
     )
     recipe = app.get('/recipes/2/ingredients')
     assert recipe.status_code == 404
+
 
 def test_recipe_get_utensils(app, monkeypatch):
     """Test /recipes/<id>/utensils"""
@@ -610,7 +617,7 @@ def test_recipe_get_utensils(app, monkeypatch):
     utensils_page = app.get('/recipes/1/utensils')
 
     assert mock_recipe_get.call_count == 1
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         mock_recipe_get, peewee.Expression(db.models.Recipe.id, '=', 1)
     )
 
@@ -623,11 +630,11 @@ def test_recipe_get_utensils(app, monkeypatch):
 
     where = join.return_value.where
     assert where.call_count == 1
-    assert test.utils.expression_assert(
+    assert utils.expression_assert(
         where, peewee.Expression(db.models.RecipeUtensils.recipe, '=', 1)
     )
 
-    assert test.utils.load(utensils_page) == {'utensils': utensils}
+    assert utils.load(utensils_page) == {'utensils': utensils}
 
 
 def test_recipe_get_utensils_404(app, monkeypatch):

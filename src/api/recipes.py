@@ -15,15 +15,12 @@ def get_recipe(recipe_id):
     try:
         return db.models.Recipe.get(db.models.Recipe.id == recipe_id)
     except peewee.DoesNotExist:
-        flask_restful.abort(404)
+        raise utils.helpers.APIException('Recipe not found', 404)
 
-# pylint: disable=protected-access
+
 def lock_table(model):
     """Lock table to avoid race conditions"""
-    query_compiler = peewee.QueryCompiler()
-    model_entity, _ = query_compiler._parse_entity(
-        model._as_entity(), None, None
-    )
+    model_entity = utils.helpers.model_entity(model)
     lock_request = (
         'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE' % model_entity
     )
@@ -87,10 +84,60 @@ def utensils_parsing(utensils):
         [u['id'] for u in utensils if u.get('id') is not None]
     )
 
+def update_recipe(recipe):
+    """Update a recipe"""
+    recipe_id = recipe.pop('id')
+    ingredients = recipe.pop('ingredients', None)
+    utensils = recipe.pop('utensils', None)
+
+    recipe = (db.models.Recipe
+              .update(**recipe)
+              .where(db.models.Recipe.id == recipe_id)
+              .returning()
+              .execute())
+
+    if ingredients is not None:
+        (db.models.RecipeIngredients
+         .delete()
+         .where(db.models.RecipeIngredients.recipe == recipe_id)
+         .execute())
+        ingredients = ingredients_parsing(ingredients)
+        for ingredient in ingredients:
+            ingredient['recipe'] = recipe
+        db.models.RecipeIngredients.insert_many(ingredients).execute()
+    else:
+        ingredients = list(
+            db.models.RecipeIngredients
+            .select(db.models.RecipeIngredients, db.models.Ingredient)
+            .join(db.models.Ingredient)
+            .where(db.models.RecipeIngredients.recipe == recipe_id)
+        )
+
+    if utensils is not None:
+        (db.models.RecipeUtensils
+         .delete()
+         .where(db.models.RecipeUtensils.recipe == recipe_id)
+         .execute())
+
+        utensils = utensils_parsing(utensils)
+
+        db.models.RecipeUtensils.insert_many([
+            {'recipe': recipe, 'utensil': utensil} for utensil in utensils
+        ]).execute()
+    else:
+        utensils = list(db.models.Utensil
+                        .select()
+                        .join(db.models.RecipeUtensils)
+                        .where(db.models.RecipeUtensils.recipe == recipe_id))
+
+    recipe.ingredients = ingredients
+    recipe.utensils = utensils
+    return recipe
+
+
 # pylint: disable=too-few-public-methods
 class RecipeListAPI(flask_restful.Resource):
     """/recipes/ endpoint"""
-
 
     # pylint: disable=no-self-use
     def get(self):
@@ -104,15 +151,16 @@ class RecipeListAPI(flask_restful.Resource):
         lock_table(db.models.Utensil)
         lock_table(db.models.Ingredient)
 
-        recipe = utils.helpers.parse_args(
-            utils.schemas.RecipePostSchema(), flask.request.json
+        recipe = utils.helpers.raise_or_return(
+            utils.schemas.recipe_schema_post, flask.request.json
         )
-        count = db.models.Recipe.select().where(
-            db.models.Recipe.name == recipe.get('name')
-        ).count()
+        count = (db.models.Recipe
+                 .select()
+                 .where(db.models.Recipe.name == recipe.get('name'))
+                 .count())
 
         if count:
-            flask_restful.abort(409, message='Recipe already exists.')
+            raise utils.helpers.APIException('Recipe already exists.', 409)
 
         ingredients = ingredients_parsing(recipe['ingredients'])
         utensils = utensils_parsing(recipe['utensils'])
@@ -121,9 +169,11 @@ class RecipeListAPI(flask_restful.Resource):
         recipe.ingredients = ingredients
         recipe.utensils = utensils
 
-        db.models.RecipeUtensils.insert_many([
+        recipe_utensils = [
             {'recipe': recipe, 'utensil': utensil} for utensil in utensils
-        ]).execute()
+        ]
+
+        db.models.RecipeUtensils.insert_many(recipe_utensils).execute()
 
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
@@ -133,13 +183,19 @@ class RecipeListAPI(flask_restful.Resource):
         }, 201
 
 
-    #@db.connector.database.transaction()
-    #def put(self):
-    #    recipes = utils.helpers.parse_args(
-    #        utils.schemas.RecipeListSchema(), flask.request.json
-    #    )
-    #    import ipdb; ipdb.set_trace()
+    @db.connector.database.transaction()
+    def put(self):
+        """Update multiple recipes"""
+        # avoid race condition by locking tables
+        lock_table(db.models.Utensil)
+        lock_table(db.models.Ingredient)
 
+        data = utils.helpers.raise_or_return(
+            utils.schemas.recipe_schema_list, flask.request.json
+        )
+        recipes = [update_recipe(recipe) for recipe in data['recipes']]
+
+        return utils.schemas.recipe_schema_list.dump({'recipes': recipes}).data
 
 
 # pylint: disable=too-few-public-methods
