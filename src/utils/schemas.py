@@ -164,6 +164,7 @@ def validate_unique(model, field, elts):
     # avoid running the request if no elements
     if update_elts:
         update_elts_count = len(update_elts)
+
         update_elts = list(model
                            .select(model.name)
                            .where(model.id << update_elts)

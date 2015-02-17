@@ -52,7 +52,6 @@ class IngredientListAPI(flask_restful.Resource):
         data = utils.helpers.raise_or_return(
             utils.schemas.ingredient_schema_list, flask.request.json
         )
-
         for ingredient in data['ingredients']:
             ingredient_id = ingredient.pop('id')
             try:
@@ -96,7 +95,7 @@ class IngredientAPI(flask_restful.Resource):
                     .execute())
 
         except StopIteration:
-            raise utils.helpers.APIException('Utensil not found', 404)
+            raise utils.helpers.APIException('Ingredient not found', 404)
 
 
 # pylint: disable=too-few-public-methods

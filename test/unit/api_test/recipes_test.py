@@ -56,45 +56,40 @@ def test_recipe_get_404(app, monkeypatch):
 def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     """Test post /ingredients/"""
 
+    def initialize_nested(elts, name):
+        """Prepare the nested tests mocks collections
+
+        The first element returned will be used for checking the insertion,
+        the second one will be the query result (it adds the id field),
+        the third one is for mocking the validate_if_unique checker
+        """
+        insert, insert_return, validate_return = [], [], []
+        for i, elt in enumerate(elts):
+            elt_name = elt.get('name')
+            elt_id = i + 1
+
+            if elt_name is None:
+                elt_name = '%s_%d' % (name, elt_id)
+                validate_return.append({'name': elt_name})
+            else:
+                insert.append({'name': elt_name})
+
+            insert_return.append(
+                utils.FakeModel({'id': elt_id, 'name': elt_name})
+            )
+        return insert, insert_return, validate_return
+
 
     # prepare the returned object to check against the test
     recipe_mock = copy.deepcopy(post_recipe_fixture)
     recipe_mock['id'] = 1
 
     recipe_mock = utils.FakeModel(recipe_mock)
-
-    # prepare the nested tests, the first element will be used for checking
-    # the insertion, the second one will be the result (it adds the id field)
-    ingredients, ingredients_mock = [], []
-    utensils, utensils_mock = [], []
-
-    for i, ingredient in enumerate(post_recipe_fixture['ingredients']):
-        ingredients.append({'name': ingredient['name']})
-        ingredients_mock.append(
-            utils.FakeModel({'id': i + 1, 'name': ingredient['name']})
-        )
-
-    for i, utensil in enumerate(post_recipe_fixture['utensils']):
-        utensils.append({'name': utensil['name']})
-        utensils_mock.append(
-            utils.FakeModel({'id': i + 1, 'name': utensil['name']})
-        )
-
-
-    # add existing ingredients and utensils, to test validation
-    post_recipe_fixture['ingredients'].append(
-        {'id': 3, 'measurement': 'L', 'quantity': 1}
+    ingredients, ingredients_mock, ingredients_select = initialize_nested(
+        post_recipe_fixture['ingredients'], 'ingredient'
     )
-    post_recipe_fixture['utensils'].append({'id': 3})
-
-    utensils_select = [{'name': 'utensil_3'}]
-    ingredients_select = [{'name': 'ingredient_3'}]
-
-    ingredients_mock.append(
-        utils.FakeModel({'id': 3, 'name': 'ingredient_3'})
-    )
-    utensils_mock.append(
-        utils.FakeModel({'id': 3, 'name': 'utensil_3'})
+    utensils, utensils_mock, utensils_select = initialize_nested(
+        post_recipe_fixture['utensils'], 'utensil'
     )
 
 
@@ -183,9 +178,8 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     assert mock_recipe_select.call_count == 1
     assert utils.expression_assert(
         mock_recipe_select.return_value.where,
-        peewee.Expression(
-            db.models.Recipe.name, '=', post_recipe_fixture.get('name')
-        )
+        peewee.Expression(db.models.Recipe.name, peewee.OP_EQ,
+                          post_recipe_fixture.get('name'))
     )
 
     # check if the utensils or ingredients to update exists and if they are not
@@ -199,9 +193,7 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     assert mock_ingredient_select.call_args_list[1] == mock.call()
     assert utils.expression_assert(
         ingredient_validate.return_value.where,
-        peewee.Expression(
-            db.models.Ingredient.id, peewee.OP_IN, [3]
-        )
+        peewee.Expression(db.models.Ingredient.id, peewee.OP_IN, [3, 4])
     )
 
     assert mock_utensil_select.call_count == 2
@@ -211,9 +203,7 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     assert mock_utensil_select.call_args_list[1] == mock.call()
     assert utils.expression_assert(
         utensil_validate.return_value.where,
-        peewee.Expression(
-            db.models.Utensil.id, peewee.OP_IN, [3]
-        )
+        peewee.Expression(db.models.Utensil.id, peewee.OP_IN, [3, 4])
     )
 
     # insertion into the tables of the nested fields
@@ -244,12 +234,10 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     ]
 
     assert recipes_create_page.status_code == 201
-    assert utils.load(recipes_create_page) == {
-        'recipe': post_recipe_fixture
-    }
+    assert utils.load(recipes_create_page) == {'recipe': post_recipe_fixture}
 
 
-def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
+def test_recipes_post_409(app, monkeypatch, post_recipe_fixture_no_id):
     """Test post conflict /recipes/"""
 
     mock_select = mock.Mock()
@@ -260,15 +248,14 @@ def test_recipes_post_409(app, monkeypatch, post_recipe_fixture):
 
     mock_select.return_value.where.return_value.count.return_value = 1
     recipes_create_page = app.post(
-        '/recipes/', data=json.dumps(post_recipe_fixture),
+        '/recipes/', data=json.dumps(post_recipe_fixture_no_id),
         content_type='application/json'
     )
 
     assert utils.expression_assert(
         mock_select.return_value.where,
-        peewee.Expression(
-            db.models.Recipe.name, '=', post_recipe_fixture.get('name')
-        )
+        peewee.Expression(db.models.Recipe.name, peewee.OP_EQ,
+                          post_recipe_fixture_no_id.get('name'))
     )
     assert recipes_create_page.status_code == 409
     assert utils.load(recipes_create_page) == (
@@ -285,14 +272,34 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
             '/recipes/', data=json.dumps(data), content_type='application/json'
         )
 
+    def validate_unique_mock(mock_obj, return_value):
+        """Simple alias for code simplification"""
+        (mock_obj.return_value
+         .where.return_value
+         .dicts.return_value) = return_value
+
     mock_execute_sql = mock.Mock()
+    mock_select_update_ingrs = mock.Mock()
+    mock_select_update_utensils = mock.Mock()
+
     monkeypatch.setattr('db.connector.database.execute_sql', mock_execute_sql)
+    monkeypatch.setattr('db.models.Ingredient.select',
+                        mock_select_update_ingrs)
+    monkeypatch.setattr('db.models.Utensil.select',
+                        mock_select_update_utensils)
 
     error_message = {
         'errors': {'name': ['Missing data for required field.']},
         'message': 'Request malformed',
         'status': 400
     }
+
+    validate_unique_mock(mock_select_update_ingrs,
+                         [{'name': 'ingredient_3'}, {'name': 'ingredient_4'}])
+
+    validate_unique_mock(mock_select_update_utensils,
+                         [{'name': 'utensil_3'}, {'name': 'utensil_4'}])
+
     post_recipe_fixture.pop('name')
     recipes_create_page = post(post_recipe_fixture)
     assert recipes_create_page.status_code == 400
@@ -361,34 +368,18 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     assert recipes_create_page.status_code == 400
     assert utils.load(recipes_create_page) == error_message
 
-    post_recipe_fixture['ingredients'].append(
-        {'id': 1, 'measurement': 'oz', 'quantity': 1}
-    )
-    post_recipe_fixture['ingredients'].append(
-        {'id': 2, 'measurement': 'oz', 'quantity': 1}
-    )
-
-    mock_select_update_elts = mock.Mock()
-    (mock_select_update_elts.return_value
-     .where.return_value
-     .dicts.return_value) = [{'name': 'ingredient_3'}]
-
-    monkeypatch.setattr('db.models.Ingredient.select', mock_select_update_elts)
-
     error_message['errors']['ingredients'] = [
         'There is some entries to update which does not exist.'
     ]
 
-    recipes_create_page = post(post_recipe_fixture)
+    validate_unique_mock(mock_select_update_ingrs, [{'name': 'ingredient_3'}])
 
+    recipes_create_page = post(post_recipe_fixture)
     assert recipes_create_page.status_code == 400
     assert utils.load(recipes_create_page) == error_message
 
-    dicts_return_value = [{'name': 'ingredient_1'}, {'name': 'ingredient_3'}]
-
-    (mock_select_update_elts.return_value
-     .where.return_value
-     .dicts.return_value) = dicts_return_value
+    validate_unique_mock(mock_select_update_ingrs,
+                         [{'name': 'ingredient_1'}, {'name': 'ingredient_3'}])
 
     error_message['errors']['ingredients'] = [
         'There is multiple entries for the same entity.'
@@ -449,15 +440,7 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     assert recipes_create_page.status_code == 400
     assert utils.load(recipes_create_page) == error_message
 
-    post_recipe_fixture['utensils'].append({'id': 1})
-    post_recipe_fixture['utensils'].append({'id': 2})
-
-    mock_select_update_elts = mock.Mock()
-    (mock_select_update_elts.return_value
-     .where.return_value
-     .dicts.return_value) = [{'name': 'utensil_3'}]
-
-    monkeypatch.setattr('db.models.Utensil.select', mock_select_update_elts)
+    validate_unique_mock(mock_select_update_utensils, [{'name': 'utensil_3'}])
 
     error_message['errors']['utensils'] = [
         'There is some entries to update which does not exist.'
@@ -468,9 +451,8 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     assert recipes_create_page.status_code == 400
     assert utils.load(recipes_create_page) == error_message
 
-    (mock_select_update_elts.return_value
-     .where.return_value
-     .dicts.return_value) = [{'name': 'utensil_1'}, {'name': 'utensil_3'}]
+    validate_unique_mock(mock_select_update_utensils,
+                         [{'name': 'utensil_1'}, {'name': 'utensil_3'}])
 
     error_message['errors']['utensils'] = [
         'There is multiple entries for the same entity.'
@@ -564,7 +546,8 @@ def test_recipe_get_ingredients(app, monkeypatch):
 
     assert mock_recipe_get.call_count == 1
     assert utils.expression_assert(
-        mock_recipe_get, peewee.Expression(db.models.Recipe.id, '=', 1)
+        mock_recipe_get,
+        peewee.Expression(db.models.Recipe.id, peewee.OP_EQ, 1)
     )
 
     assert mock_recipe_ingredients_select.call_count == 1
