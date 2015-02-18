@@ -1,0 +1,24 @@
+{
+  "recipes": [{
+    "id": 1,
+    "name": "recipe_1_update",
+    "utensils": [
+      {"name": "utensil_1"},
+      {"name": "utensil_10"}
+    ],
+    "difficulty": 1,
+    "people": 2,
+    "directions": {},
+    "duration": "0/5",
+    "ingredients": [
+      {"name": "ingredient_1", "measurement": "L", "quantity": 1},
+      {"name": "ingredient_10", "measurement": "g", "quantity": 2},
+      {"name": "ingredient_11", "measurement": "oz", "quantity": 3}
+    ],
+    "type": "starter"
+  }, {
+    "id": 4,
+    "name": "recipe_2_update"
+  }]
+}
+

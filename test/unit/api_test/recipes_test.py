@@ -7,6 +7,31 @@ import unittest.mock as mock
 import db.models
 import test.utils as utils
 import utils.helpers as helpers
+import utils.schemas as schemas
+
+def initialize_nested(elts, name):
+    """Prepare the nested tests mocks collections
+
+    The first element returned will be used for checking the insertion,
+    the second one will be the query result (it adds the id field),
+    the third one is for mocking the validate_if_unique checker
+    """
+    insert, insert_return, validate_return = [], [], []
+    for i, elt in enumerate(elts):
+        elt_name = elt.get('name')
+        elt_id = i + 1
+
+        if elt_name is None:
+            elt_name = '%s_%d' % (name, elt_id)
+            validate_return.append({'name': elt_name})
+        else:
+            insert.append({'name': elt_name})
+
+        insert_return.append(
+            utils.FakeModel({'id': elt_id, 'name': elt_name})
+        )
+    return insert, insert_return, validate_return
+
 
 def test_recipes_list(app, monkeypatch):
     """Test /recipes/"""
@@ -33,12 +58,11 @@ def test_recipe_get(app, monkeypatch):
     monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
     recipe_page = app.get('/recipes/1')
 
-    assert mock_recipe_get.call_count == 1
-    assert utils.expression_assert(
-        mock_recipe_get, peewee.Expression(db.models.Ingredient.id, '=', 1)
-    )
-    assert utils.load(recipe_page) == {'recipe': recipe}
+    get_exp = peewee.Expression(db.models.Ingredient.id, peewee.OP_EQ, 1)
 
+    assert mock_recipe_get.call_count == 1
+    assert utils.expression_assert(mock_recipe_get, get_exp)
+    assert utils.load(recipe_page) == {'recipe': recipe}
 
 
 def test_recipe_get_404(app, monkeypatch):
@@ -54,31 +78,7 @@ def test_recipe_get_404(app, monkeypatch):
 
 # pylint: disable=too-many-statements, too-many-locals
 def test_recipes_post(app, monkeypatch, post_recipe_fixture):
-    """Test post /ingredients/"""
-
-    def initialize_nested(elts, name):
-        """Prepare the nested tests mocks collections
-
-        The first element returned will be used for checking the insertion,
-        the second one will be the query result (it adds the id field),
-        the third one is for mocking the validate_if_unique checker
-        """
-        insert, insert_return, validate_return = [], [], []
-        for i, elt in enumerate(elts):
-            elt_name = elt.get('name')
-            elt_id = i + 1
-
-            if elt_name is None:
-                elt_name = '%s_%d' % (name, elt_id)
-                validate_return.append({'name': elt_name})
-            else:
-                insert.append({'name': elt_name})
-
-            insert_return.append(
-                utils.FakeModel({'id': elt_id, 'name': elt_name})
-            )
-        return insert, insert_return, validate_return
-
+    """Test post /recipes/"""
 
     # prepare the returned object to check against the test
     recipe_mock = copy.deepcopy(post_recipe_fixture)
@@ -137,21 +137,19 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
     monkeypatch.setattr('db.connector.database.execute_sql', mock_execute_sql)
     monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
     monkeypatch.setattr('db.models.Recipe.create', mock_recipe_create)
+
     monkeypatch.setattr('db.models.Ingredient.select', mock_ingredient_select)
-    monkeypatch.setattr(
-        'db.models.Ingredient.insert_many_unique', mock_ingredient_insert
-    )
+    monkeypatch.setattr('db.models.Ingredient.insert_many',
+                        mock_ingredient_insert)
+
     monkeypatch.setattr('db.models.Utensil.select', mock_utensil_select)
-    monkeypatch.setattr(
-        'db.models.Utensil.insert_many_unique', mock_utensil_insert
-    )
-    monkeypatch.setattr(
-        'db.models.RecipeUtensils.insert_many', mock_recipe_utensils_insert
-    )
-    monkeypatch.setattr(
-        'db.models.RecipeIngredients.insert_many',
-        mock_recipe_ingredients_insert
-    )
+    monkeypatch.setattr('db.models.Utensil.insert_many',
+                        mock_utensil_insert)
+
+    monkeypatch.setattr('db.models.RecipeUtensils.insert_many',
+                        mock_recipe_utensils_insert)
+    monkeypatch.setattr('db.models.RecipeIngredients.insert_many',
+                        mock_recipe_ingredients_insert)
 
     # mock the recipes methods
     mock_recipe_select.return_value.where.return_value.count.return_value = 0
@@ -163,7 +161,6 @@ def test_recipes_post(app, monkeypatch, post_recipe_fixture):
         '/recipes/', data=json.dumps(post_recipe_fixture),
         content_type='application/json'
     )
-
     # check if the tables are correctly locked
     lock_string = 'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE'
     lock_utensil = lock_string % helpers.model_entity(db.models.Utensil)
@@ -522,6 +519,293 @@ def test_recipes_post_400(app, monkeypatch, post_recipe_fixture):
     assert utils.load(recipes_create_page) == error_message
 
 
+# pylint: disable=unpacking-non-sequence
+def test_recipes_put(app, monkeypatch, put_recipes_fixture):
+    """Test put /recipes/"""
+    put_recipe_1, put_recipe_2 = put_recipes_fixture
+
+    ingredients, ingredients_mock, ingredients_select = initialize_nested(
+        put_recipe_1['ingredients'], 'ingredient'
+    )
+    utensils, utensils_mock, utensils_select = initialize_nested(
+        put_recipe_1['utensils'], 'utensil'
+    )
+
+    mock_recipe_1, mock_recipe_2 = copy.deepcopy(put_recipes_fixture)
+
+    mock_recipe_1_ingrs = mock_recipe_1.pop('ingredients')
+    mock_recipe_1.pop('utensils')
+
+    mock_execute_sql = mock.Mock()
+    mock_recipe_count = mock.Mock()
+
+    mock_recipe_ingredients_delete = mock.Mock()
+    mock_recipe_utensils_delete = mock.Mock()
+
+
+    mock_recipe_count.return_value.where.return_value.count.return_value = 2
+
+    # the nested fields will use two requests, the first one for validation,
+    # the second one to populate the created recipe
+
+    ingredient_validate = mock.Mock()
+    ingredient_select = mock.Mock()
+
+    utensil_validate = mock.Mock()
+    utensil_select = mock.Mock()
+
+    # mock db access for the update_recipe function
+    recipe_ingredients_insert_many = mock.Mock()
+    recipe_ingredients_select = mock.Mock()
+
+    recipe_utensils_insert_many = mock.Mock()
+    recipe_utensils_select = mock.Mock()
+
+    (recipe_ingredients_select.return_value
+     .join.return_value
+     .where.return_value) = []
+    (recipe_utensils_select.return_value
+     .join.return_value
+     .where.return_value) = []
+
+    (ingredient_validate.return_value
+     .where.return_value
+     .dicts.return_value) = ingredients_select
+    (ingredient_select.return_value
+     .where.return_value) = ingredients_mock
+
+    (utensil_validate.return_value
+     .where.return_value
+     .dicts.return_value) = utensils_select
+    (utensil_select.return_value
+     .where.return_value) = utensils_mock
+
+    mock_ingredient_insert = mock.Mock()
+    mock_ingredient_select = mock.Mock(
+        side_effect=iter([ingredient_validate(), ingredient_select()])
+    )
+
+    mock_utensil_insert = mock.Mock()
+    mock_utensil_select = mock.Mock(
+        side_effect=iter([utensil_validate(), utensil_select(),
+                          recipe_utensils_select()])
+    )
+
+    mock_update_recipe_1, mock_update_recipe_2 = mock.Mock(), mock.Mock()
+
+    recipe_1_fake_model = utils.FakeModel(mock_recipe_1)
+    (mock_update_recipe_1.return_value
+     .where.return_value
+     .returning.return_value
+     .execute.return_value) = recipe_1_fake_model
+    (mock_update_recipe_2.return_value
+     .where.return_value
+     .returning.return_value
+     .execute.return_value) = utils.FakeModel(mock_recipe_2)
+
+    mock_recipe_update = mock.Mock(
+        side_effect=iter([mock_update_recipe_1(), mock_update_recipe_2()])
+    )
+
+    # monkeypatch all the things! o/
+    monkeypatch.setattr('db.connector.database.execute_sql', mock_execute_sql)
+
+    monkeypatch.setattr('db.models.Ingredient.select', mock_ingredient_select)
+    monkeypatch.setattr('db.models.Ingredient.insert_many',
+                        mock_ingredient_insert)
+
+    monkeypatch.setattr('db.models.RecipeIngredients.delete',
+                        mock_recipe_ingredients_delete)
+    monkeypatch.setattr('db.models.RecipeIngredients.insert_many',
+                        recipe_ingredients_insert_many)
+    monkeypatch.setattr('db.models.RecipeIngredients.select',
+                        recipe_ingredients_select)
+
+    monkeypatch.setattr('db.models.Utensil.select', mock_utensil_select)
+    monkeypatch.setattr('db.models.Utensil.insert_many', mock_utensil_insert)
+
+    monkeypatch.setattr('db.models.RecipeUtensils.delete',
+                        mock_recipe_utensils_delete)
+    monkeypatch.setattr('db.models.RecipeUtensils.insert_many',
+                        recipe_utensils_insert_many)
+
+    monkeypatch.setattr('db.models.Recipe.select', mock_recipe_count)
+    monkeypatch.setattr('db.models.Recipe.update', mock_recipe_update)
+
+    # go, go, go
+    recipes_create_page = app.put(
+        '/recipes/', data=json.dumps({'recipes': put_recipes_fixture}),
+        content_type='application/json'
+    )
+
+    # check if the tables are correctly locked
+    lock_string = 'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE'
+    lock_utensil = lock_string % helpers.model_entity(db.models.Utensil)
+    lock_ingredient = lock_string % helpers.model_entity(db.models.Ingredient)
+
+    utensil_lock = mock.call(lock_utensil)
+    ingredient_lock = mock.call(lock_ingredient)
+
+    assert mock_execute_sql.call_args_list == [utensil_lock, ingredient_lock]
+
+    # check if the utensils or ingredients to update exists and if they are not
+    # redundant in the same request
+
+    # it has been called two times, one for the validation, one for the return
+    assert mock_ingredient_select.call_count == 2
+    assert utils.expression_assert(
+        mock_ingredient_select, db.models.Ingredient.name
+    )
+    assert mock_ingredient_select.call_args_list[1] == mock.call()
+    assert utils.expression_assert(
+        ingredient_validate.return_value.where,
+        peewee.Expression(db.models.Ingredient.id, peewee.OP_IN, [3, 4])
+    )
+
+    assert mock_utensil_select.call_count == 3
+    assert utils.expression_assert(
+        mock_utensil_select, db.models.Utensil.name
+    )
+    assert mock_utensil_select.call_args_list[1:] == [mock.call(), mock.call()]
+    assert utils.expression_assert(
+        utensil_validate.return_value.where,
+        peewee.Expression(db.models.Utensil.id, peewee.OP_IN, [3, 4])
+    )
+
+    # update of the recipes
+    id_recipe_1 = mock_recipe_1.pop('id')
+    id_recipe_2 = mock_recipe_2.pop('id')
+
+    update_calls = [mock.call(**mock_recipe_1), mock.call(**mock_recipe_2)]
+    assert mock_recipe_update.call_args_list == update_calls
+
+    where = mock_update_recipe_1.return_value.where
+    where_exp = peewee.Expression(db.models.Recipe.id, peewee.OP_EQ,
+                                  id_recipe_1)
+
+    assert utils.expression_assert(where, where_exp)
+    returning = where.return_value.returning
+    assert returning.call_args_list == [mock.call()]
+
+    execute = returning.return_value.execute
+    assert execute.call_args_list == [mock.call()]
+
+    where = mock_update_recipe_2.return_value.where
+    where_exp = peewee.Expression(db.models.Recipe.id, peewee.OP_EQ,
+                                  id_recipe_2)
+
+    assert utils.expression_assert(where, where_exp)
+    returning = where.return_value.returning
+    assert returning.call_args_list == [mock.call()]
+
+    execute = returning.return_value.execute
+    assert execute.call_args_list == [mock.call()]
+
+
+    # deletion of the recipes ingredients and utensils for update
+    # (called for the first recipe update)
+    assert mock_recipe_utensils_delete.call_args_list == [mock.call()]
+    where = mock_recipe_utensils_delete.return_value.where
+    where_exp = peewee.Expression(db.models.RecipeUtensils.recipe,
+                                  peewee.OP_EQ, id_recipe_1)
+    assert utils.expression_assert(where, where_exp)
+    execute = where.return_value.execute
+    assert execute.call_args_list == [mock.call()]
+
+    assert mock_recipe_ingredients_delete.call_args_list == [mock.call()]
+    where = mock_recipe_ingredients_delete.return_value.where
+    where_exp = peewee.Expression(db.models.RecipeIngredients.recipe,
+                                  peewee.OP_EQ, id_recipe_1)
+    assert utils.expression_assert(where, where_exp)
+    execute = where.return_value.execute
+    assert execute.call_args_list == [mock.call()]
+
+
+    # insertion into the tables of the nested fields
+    # (called for the first recipe update)
+    execute = mock_ingredient_insert.return_value.execute
+    assert mock_ingredient_insert.call_count == 1
+
+    (rows, unique_field), _ = mock_ingredient_insert.call_args
+    assert rows == ingredients
+    assert unique_field.__dict__ == db.models.Ingredient.name.__dict__
+
+    assert execute.call_count == 1
+    assert execute.call_args == mock.call()
+
+    execute = mock_utensil_insert.return_value.execute
+    assert mock_utensil_insert.call_count == 1
+
+    (rows, unique_field), _ = mock_utensil_insert.call_args
+    assert rows == utensils
+    assert unique_field.__dict__ == db.models.Utensil.name.__dict__
+
+    assert execute.call_count == 1
+    assert execute.call_args == mock.call()
+
+    recipe_utensils_calls = [mock.call([
+        {'recipe': recipe_1_fake_model, 'utensil': utensil}
+        for utensil in utensils_mock
+    ])]
+
+    assert recipe_utensils_insert_many.call_args_list == recipe_utensils_calls
+
+    recipe_ingrs_calls = []
+    for ingr_model, recipe_ingr in zip(ingredients_mock, mock_recipe_1_ingrs):
+        recipe_ingr = copy.deepcopy(recipe_ingr)
+        recipe_ingr['ingredient'] = ingr_model
+        recipe_ingr['recipe'] = recipe_1_fake_model
+        recipe_ingr['id'] = ingr_model.id
+        recipe_ingr['name'] = ingr_model.name
+        recipe_ingrs_calls.append(recipe_ingr)
+
+    recipe_ingrs_calls = [mock.call(recipe_ingrs_calls)]
+    assert recipe_ingredients_insert_many.call_args_list == recipe_ingrs_calls
+
+    # for the second recipe, the ingredients and utensils are selected from
+    # the db
+    assert recipe_ingredients_select.call_count == 1
+    (recipe_ingrs_model, ingrs_model), _ = recipe_ingredients_select.call_args
+    assert recipe_ingrs_model.__dict__ == db.models.RecipeIngredients.__dict__
+    assert ingrs_model.__dict__ == db.models.Ingredient.__dict__
+
+    join = recipe_ingredients_select.return_value.join
+    assert join.call_count == 1
+    (ingr_model,), _ = join.call_args
+    assert ingr_model.__dict__ == db.models.Ingredient.__dict__
+
+    where = join.return_value.where
+    where_exp = peewee.Expression(db.models.RecipeIngredients.recipe,
+                                  peewee.OP_EQ, id_recipe_2)
+    assert where.call_count == 1
+    assert utils.expression_assert(where, where_exp)
+
+
+    assert recipe_utensils_select.call_args_list == [mock.call()]
+
+    join = recipe_utensils_select.return_value.join
+    (utensil_model,), _ = join.call_args
+    assert utensil_model.__dict__ == db.models.RecipeUtensils.__dict__
+
+    where = join.return_value.where
+    where_exp = peewee.Expression(db.models.RecipeUtensils.recipe,
+                                  peewee.OP_EQ, id_recipe_2)
+    assert where.call_count == 1
+    assert utils.expression_assert(where, where_exp)
+
+    put_recipe_1['utensils'] = [schemas.utensil_schema.dump(utensil).data
+                                for utensil in utensils_mock]
+
+    put_recipe_1['ingredients'] = []
+    for ingr_model, recipe_ingr in zip(ingredients_mock, mock_recipe_1_ingrs):
+        recipe_ingr = copy.deepcopy(recipe_ingr)
+        recipe_ingr.update(**schemas.ingredient_schema.dump(ingr_model).data)
+        put_recipe_1['ingredients'].append(recipe_ingr)
+
+    recipes = {'recipes': [put_recipe_1, put_recipe_2]}
+    assert utils.load(recipes_create_page) == recipes
+
+
 def test_recipe_get_ingredients(app, monkeypatch):
     """Test /recipes/<id>/ingredients"""
 
@@ -543,12 +827,10 @@ def test_recipe_get_ingredients(app, monkeypatch):
 
     ingredients_page = app.get('/recipes/1/ingredients')
 
+    get_exp = peewee.Expression(db.models.Recipe.id, peewee.OP_EQ, 1)
 
     assert mock_recipe_get.call_count == 1
-    assert utils.expression_assert(
-        mock_recipe_get,
-        peewee.Expression(db.models.Recipe.id, peewee.OP_EQ, 1)
-    )
+    assert utils.expression_assert(mock_recipe_get, get_exp)
 
     assert mock_recipe_ingredients_select.call_count == 1
     assert mock_recipe_ingredients_select.call_args == mock.call(
@@ -562,10 +844,11 @@ def test_recipe_get_ingredients(app, monkeypatch):
     assert join.call_args == mock.call(db.models.Ingredient)
 
     where = join.return_value.where
+    where_exp = peewee.Expression(db.models.RecipeIngredients.recipe,
+                                  peewee.OP_EQ, 1)
+
     assert where.call_count == 1
-    assert utils.expression_assert(
-        where, peewee.Expression(db.models.RecipeIngredients.recipe, '=', 1)
-    )
+    assert utils.expression_assert(where, where_exp)
 
     assert utils.load(ingredients_page) == {'ingredients': ingredients}
 
@@ -599,10 +882,9 @@ def test_recipe_get_utensils(app, monkeypatch):
 
     utensils_page = app.get('/recipes/1/utensils')
 
+    get_exp = peewee.Expression(db.models.Recipe.id, peewee.OP_EQ, 1)
     assert mock_recipe_get.call_count == 1
-    assert utils.expression_assert(
-        mock_recipe_get, peewee.Expression(db.models.Recipe.id, '=', 1)
-    )
+    assert utils.expression_assert(mock_recipe_get, get_exp)
 
     assert mock_utensil_select.call_count == 1
     assert mock_utensil_select.call_args == mock.call()
@@ -612,10 +894,11 @@ def test_recipe_get_utensils(app, monkeypatch):
     assert join.call_args == mock.call(db.models.RecipeUtensils)
 
     where = join.return_value.where
+    where_exp = peewee.Expression(db.models.RecipeUtensils.recipe,
+                                  peewee.OP_EQ, 1)
+
     assert where.call_count == 1
-    assert utils.expression_assert(
-        where, peewee.Expression(db.models.RecipeUtensils.recipe, '=', 1)
-    )
+    assert utils.expression_assert(where, where_exp)
 
     assert utils.load(utensils_page) == {'utensils': utensils}
 

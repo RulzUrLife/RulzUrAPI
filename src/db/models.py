@@ -27,11 +27,8 @@ class BaseModel(peewee.Model):
         return db.orm.UpdateQuery(cls, update=fdict)
 
     @classmethod
-    def insert_many(cls, rows):
-        return db.orm.InsertQuery(cls, rows=rows)
-
-    @classmethod
-    def insert_many_unique(cls, unique_field, rows):
+    # pylint: disable=arguments-differ
+    def insert_many(cls, rows, unique_field=None):
         """Insert many values if they not exists
 
         unique_field determine the field on which the unique filter will be
@@ -40,7 +37,11 @@ class BaseModel(peewee.Model):
         This function has a possibility of race condition, be sure to protect
         your transaction and your table against concurrent access
         """
-        return db.orm.InsertQuery(cls, unique=unique_field, rows=rows)
+
+        if unique_field is None:
+            return db.orm.InsertQuery(cls, rows=rows)
+        else:
+            return db.orm.InsertQuery(cls, unique=unique_field, rows=rows)
 
     class Meta(object):
         """Define the common database configuration for the models

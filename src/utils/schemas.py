@@ -189,11 +189,11 @@ class RecipeSchema(DefaultSchema):
 
     name = marshmallow.fields.String()
     people = marshmallow.fields.Integer(
-        validate=marshmallow.validate.Range(1, 12)
+        validate=marshmallow.validate.Range(1, 12), default=None
     )
     directions = marshmallow.fields.Raw()
     difficulty = marshmallow.fields.Integer(
-        validate=marshmallow.validate.Range(1, 5)
+        validate=marshmallow.validate.Range(1, 5), default=None
     )
     duration = marshmallow.fields.Select([
         '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45',

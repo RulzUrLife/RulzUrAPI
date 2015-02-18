@@ -32,7 +32,7 @@ def lock_table(model):
 def get_or_insert(model, elts_insert, elts_get):
     """Get the elements from a model or create them if they not exist"""
 
-    model.insert_many_unique(model.name, elts_insert).execute()
+    model.insert_many(elts_insert, model.name).execute()
 
     elts_insert = [elt['name'] for elt in elts_insert]
 
@@ -89,13 +89,11 @@ def update_recipe(recipe):
     recipe_id = recipe.pop('id')
     ingredients = recipe.pop('ingredients', None)
     utensils = recipe.pop('utensils', None)
-
     recipe = (db.models.Recipe
               .update(**recipe)
               .where(db.models.Recipe.id == recipe_id)
               .returning()
               .execute())
-
     if ingredients is not None:
         (db.models.RecipeIngredients
          .delete()
@@ -104,6 +102,7 @@ def update_recipe(recipe):
         ingredients = ingredients_parsing(ingredients)
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
+
         db.models.RecipeIngredients.insert_many(ingredients).execute()
     else:
         ingredients = list(
@@ -187,6 +186,7 @@ class RecipeListAPI(flask_restful.Resource):
     def put(self):
         """Update multiple recipes"""
         # avoid race condition by locking tables
+
         lock_table(db.models.Utensil)
         lock_table(db.models.Ingredient)
 
