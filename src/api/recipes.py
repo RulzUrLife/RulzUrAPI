@@ -5,13 +5,15 @@ import flask
 import peewee
 
 import db.connector
-import db.models
+import db.models as models
 
 import utils.helpers
+import utils.schemas as schemas
 
 
 def get_recipe(recipe_id):
     """Get a specific recipe or raise 404 if it does not exists"""
+
     try:
         return db.models.Recipe.get(db.models.Recipe.id == recipe_id)
     except peewee.DoesNotExist:
@@ -64,7 +66,7 @@ def ingredients_parsing(ingrs):
             ingrs_insert.append({'name': ingr_name})
             ingrs_name[ingr_name] = ingr
 
-    db_ingrs = get_or_insert(db.models.Ingredient, ingrs_insert, ingrs_get)
+    db_ingrs = get_or_insert(models.Ingredient, ingrs_insert, ingrs_get)
 
     # wraps again the ingredients into recipe_ingredients dict
     for ingr in db_ingrs:
@@ -79,7 +81,7 @@ def ingredients_parsing(ingrs):
 def utensils_parsing(utensils):
     """Parse the utensils before calling get_or_insert"""
     return get_or_insert(
-        db.models.Utensil,
+        models.Utensil,
         [u for u in utensils if u.get('id') is None],
         [u['id'] for u in utensils if u.get('id') is not None]
     )
@@ -89,45 +91,45 @@ def update_recipe(recipe):
     recipe_id = recipe.pop('id')
     ingredients = recipe.pop('ingredients', None)
     utensils = recipe.pop('utensils', None)
-    recipe = (db.models.Recipe
+    recipe = (models.Recipe
               .update(**recipe)
-              .where(db.models.Recipe.id == recipe_id)
+              .where(models.Recipe.id == recipe_id)
               .returning()
               .execute())
     if ingredients is not None:
-        (db.models.RecipeIngredients
+        (models.RecipeIngredients
          .delete()
-         .where(db.models.RecipeIngredients.recipe == recipe_id)
+         .where(models.RecipeIngredients.recipe == recipe_id)
          .execute())
         ingredients = ingredients_parsing(ingredients)
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
 
-        db.models.RecipeIngredients.insert_many(ingredients).execute()
+        models.RecipeIngredients.insert_many(ingredients).execute()
     else:
         ingredients = list(
-            db.models.RecipeIngredients
-            .select(db.models.RecipeIngredients, db.models.Ingredient)
-            .join(db.models.Ingredient)
-            .where(db.models.RecipeIngredients.recipe == recipe_id)
+            models.RecipeIngredients
+            .select(models.RecipeIngredients, models.Ingredient)
+            .join(models.Ingredient)
+            .where(models.RecipeIngredients.recipe == recipe_id)
         )
 
     if utensils is not None:
-        (db.models.RecipeUtensils
+        (models.RecipeUtensils
          .delete()
-         .where(db.models.RecipeUtensils.recipe == recipe_id)
+         .where(models.RecipeUtensils.recipe == recipe_id)
          .execute())
 
         utensils = utensils_parsing(utensils)
 
-        db.models.RecipeUtensils.insert_many([
+        models.RecipeUtensils.insert_many([
             {'recipe': recipe, 'utensil': utensil} for utensil in utensils
         ]).execute()
     else:
-        utensils = list(db.models.Utensil
+        utensils = list(models.Utensil
                         .select()
-                        .join(db.models.RecipeUtensils)
-                        .where(db.models.RecipeUtensils.recipe == recipe_id))
+                        .join(models.RecipeUtensils)
+                        .where(models.RecipeUtensils.recipe == recipe_id))
 
     recipe.ingredients = ingredients
     recipe.utensils = utensils
@@ -141,21 +143,21 @@ class RecipeListAPI(flask_restful.Resource):
     # pylint: disable=no-self-use
     def get(self):
         """List all recipes"""
-        return {'recipes': list(db.models.Recipe.select().dicts())}
+        return {'recipes': list(models.Recipe.select().dicts())}
 
     @db.connector.database.transaction()
     def post(self):
         """Create a recipe"""
         # avoid race condition by locking tables
-        lock_table(db.models.Utensil)
-        lock_table(db.models.Ingredient)
+        lock_table(models.Utensil)
+        lock_table(models.Ingredient)
 
         recipe = utils.helpers.raise_or_return(
             utils.schemas.recipe_schema_post, flask.request.json
         )
-        count = (db.models.Recipe
+        count = (models.Recipe
                  .select()
-                 .where(db.models.Recipe.name == recipe.get('name'))
+                 .where(models.Recipe.name == recipe.get('name'))
                  .count())
 
         if count:
@@ -164,7 +166,7 @@ class RecipeListAPI(flask_restful.Resource):
         ingredients = ingredients_parsing(recipe['ingredients'])
         utensils = utensils_parsing(recipe['utensils'])
 
-        recipe = db.models.Recipe.create(**recipe)
+        recipe = models.Recipe.create(**recipe)
         recipe.ingredients = ingredients
         recipe.utensils = utensils
 
@@ -172,11 +174,11 @@ class RecipeListAPI(flask_restful.Resource):
             {'recipe': recipe, 'utensil': utensil} for utensil in utensils
         ]
 
-        db.models.RecipeUtensils.insert_many(recipe_utensils).execute()
+        models.RecipeUtensils.insert_many(recipe_utensils).execute()
 
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
-        db.models.RecipeIngredients.insert_many(ingredients).execute()
+        models.RecipeIngredients.insert_many(ingredients).execute()
         return {
             'recipe': utils.schemas.RecipeSchema().dump(recipe).data
         }, 201
@@ -187,8 +189,8 @@ class RecipeListAPI(flask_restful.Resource):
         """Update multiple recipes"""
         # avoid race condition by locking tables
 
-        lock_table(db.models.Utensil)
-        lock_table(db.models.Ingredient)
+        lock_table(models.Utensil)
+        lock_table(models.Ingredient)
 
         data = utils.helpers.raise_or_return(
             utils.schemas.recipe_schema_list, flask.request.json
@@ -205,7 +207,27 @@ class RecipeAPI(flask_restful.Resource):
     # pylint: disable=no-self-use
     def get(self, recipe_id):
         """Provide the recipe for recipe_id"""
-        return {'recipe': get_recipe(recipe_id).to_dict()}
+        try:
+            recipe = next(
+                models.Recipe
+                .select(models.Recipe,
+                        models.RecipeIngredients, models.Ingredient,
+                        models.RecipeUtensils, models.Utensil)
+                .join(models.RecipeIngredients)
+                .join(models.Ingredient)
+                .switch(models.Recipe)
+                .join(models.RecipeUtensils)
+                .join(models.Utensil)
+                .where(models.Recipe.id == recipe_id)
+                .aggregate_rows()
+                .execute()
+            )
+
+        except StopIteration:
+            raise utils.helpers.APIException('Recipe not found', 404)
+
+        recipe, _ = schemas.recipe_schema.dump(recipe)
+        return {'recipe': recipe}
 
 # pylint: disable=too-few-public-methods
 class RecipeIngredientListAPI(flask_restful.Resource):
@@ -217,14 +239,14 @@ class RecipeIngredientListAPI(flask_restful.Resource):
         get_recipe(recipe_id)
 
         ingredients_query = (
-            db.models.RecipeIngredients
+            models.RecipeIngredients
             .select(
-                db.models.RecipeIngredients.quantity,
-                db.models.RecipeIngredients.measurement,
-                db.models.Ingredient
+                models.RecipeIngredients.quantity,
+                models.RecipeIngredients.measurement,
+                models.Ingredient
             )
-            .join(db.models.Ingredient)
-            .where(db.models.RecipeIngredients.recipe == recipe_id)
+            .join(models.Ingredient)
+            .where(models.RecipeIngredients.recipe == recipe_id)
             .dicts())
 
         return {'ingredients': list(ingredients_query)}
@@ -239,10 +261,10 @@ class RecipeUtensilListAPI(flask_restful.Resource):
         get_recipe(recipe_id)
 
         utensils_query = (
-            db.models.Utensil
+            models.Utensil
             .select()
-            .join(db.models.RecipeUtensils)
-            .where(db.models.RecipeUtensils.recipe == recipe_id)
+            .join(models.RecipeUtensils)
+            .where(models.RecipeUtensils.recipe == recipe_id)
             .dicts())
 
         return {'utensils': list(utensils_query)}

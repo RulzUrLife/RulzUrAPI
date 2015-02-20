@@ -133,11 +133,11 @@ class RecipeIngredientsSchema(NestedSchema, DefaultSchema):
         # handle both dict or object
         if isinstance(obj, dict):
             ingredient = obj['ingredient']
-            ingredient = IngredientSchema().dump(ingredient).data
+            ingredient = ingredient_schema.dump(ingredient).data
             obj.update(ingredient)
         else:
             ingredient = obj.ingredient
-            ingredient = IngredientSchema().dump(ingredient).data
+            ingredient = ingredient_schema.dump(ingredient).data
             for key, value in ingredient.items():
                 setattr(obj, key, value)
 
@@ -147,7 +147,11 @@ class RecipeIngredientsSchema(NestedSchema, DefaultSchema):
 # pylint: disable=too-few-public-methods
 class RecipeUtensilsSchema(NestedSchema, DefaultSchema):
     """Utensil nested schema for recipe"""
-    pass
+
+    def dump(self, obj, *args, **kwargs):
+        if isinstance(obj, db.models.RecipeUtensils):
+            obj = obj.utensil
+        return super(RecipeUtensilsSchema, self).dump(obj, *args, **kwargs)
 
 
 def validate_unique(model, field, elts):
@@ -258,5 +262,6 @@ ingredient_schema_put = IngredientSchema(exclude=('id',))
 ingredient_schema_post = IngredientPostSchema()
 ingredient_schema_list = IngredientListSchema()
 
+recipe_schema = RecipeSchema()
 recipe_schema_post = RecipePostSchema()
 recipe_schema_list = RecipeListSchema()

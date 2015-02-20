@@ -50,6 +50,32 @@ def post_recipe_fixture_no_id():
 
 
 @pytest.fixture
+def recipe_dump_fixture():
+    def elts_process(elts, name):
+        for i, elt in enumerate(elts):
+            i += 1
+            elt['id'] = i
+            elt['name'] = '%s_%d' % (name, i)
+
+    rv = post_recipe_fixture()
+    rv['id'] = 1
+    elts_process(rv['utensils'], 'utensil')
+    elts_process(rv['ingredients'], 'ingredient')
+
+    return rv
+
+@pytest.fixture
+def recipe_db_fixture():
+    rv = recipe_dump_fixture()
+    # nest the ingredients to be as close as possible to the db returns
+    for i, ingr in enumerate(rv['ingredients']):
+        nested_elt = {'id': ingr.pop('id'),'name': ingr.pop('name')}
+        ingr['ingredient'] = nested_elt
+
+    return rv
+
+
+@pytest.fixture
 def put_recipes_fixture():
     """Fixture for updating multiple recipes"""
     put_fixture_1 = post_recipe_fixture()

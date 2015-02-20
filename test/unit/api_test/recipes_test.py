@@ -49,20 +49,77 @@ def test_recipes_list(app, monkeypatch):
     assert utils.load(recipes_page) == {'recipes': recipes}
 
 
-def test_recipe_get(app, monkeypatch):
+def test_recipe_get(app, monkeypatch, recipe_db_fixture, recipe_dump_fixture):
     """Test /recipes/<id>"""
+    mock_recipe_select = mock.Mock()
+    (mock_recipe_select.return_value
+     .join.return_value
+     .join.return_value
+     .switch.return_value
+     .join.return_value
+     .join.return_value
+     .where.return_value
+     .aggregate_rows.return_value
+     .execute.return_value) = iter([utils.FakeModel(recipe_db_fixture)])
 
-    recipe = {'recipe_1': 'recipe_1_content'}
+    recipe_dict = db.models.Recipe.__dict__
+    recipe_ingredients_dict = db.models.RecipeIngredients.__dict__
+    recipe_utensils_dict = db.models.RecipeUtensils.__dict__
 
-    mock_recipe_get = mock.Mock(return_value=utils.FakeModel(recipe))
-    monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
+    utensil_dict = db.models.Utensil.__dict__
+    ingredient_dict = db.models.Ingredient.__dict__
+
+    monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
+
     recipe_page = app.get('/recipes/1')
 
-    get_exp = peewee.Expression(db.models.Ingredient.id, peewee.OP_EQ, 1)
+    assert mock_recipe_select.call_count == 1
+    (recipe_model, recipe_ingredients_model, ingredient_model,
+     recipe_utensils_model, utensil_model), _ = mock_recipe_select.call_args
+    assert recipe_model.__dict__ == recipe_dict
+    assert recipe_ingredients_model.__dict__ == recipe_ingredients_dict
+    assert recipe_utensils_model.__dict__ == recipe_utensils_dict
 
-    assert mock_recipe_get.call_count == 1
-    assert utils.expression_assert(mock_recipe_get, get_exp)
-    assert utils.load(recipe_page) == {'recipe': recipe}
+    assert utensil_model.__dict__ == utensil_dict
+    assert ingredient_model.__dict__ == ingredient_dict
+
+
+    join = mock_recipe_select.return_value.join
+    assert join.call_count == 1
+    (recipe_ingredients_model,), _ = join.call_args
+    assert recipe_ingredients_model.__dict__ == recipe_ingredients_dict
+
+    join = join.return_value.join
+    assert join.call_count == 1
+    (ingredient_model,), _ = join.call_args
+    assert ingredient_model.__dict__ == ingredient_dict
+
+    switch = join.return_value.switch
+    assert switch.call_count == 1
+    (recipe_model,), _ = switch.call_args
+    assert recipe_model.__dict__ == recipe_dict
+
+    join = switch.return_value.join
+    assert join.call_count == 1
+    (recipe_utensils_model,), _ = join.call_args
+    assert recipe_utensils_model.__dict__ == recipe_utensils_dict
+
+    join = join.return_value.join
+    assert join.call_count == 1
+    (utensil_model,), _ = join.call_args
+    assert utensil_model.__dict__ == utensil_dict
+
+    where = join.return_value.where
+    where_exp = peewee.Expression(db.models.Recipe.id, peewee.OP_EQ, 1)
+    assert utils.expression_assert(where, where_exp)
+
+    aggregate_rows = where.return_value.aggregate_rows
+    assert aggregate_rows.call_args_list == [mock.call()]
+
+    execute = aggregate_rows.return_value.execute
+    assert execute.call_args_list == [mock.call()]
+
+    assert utils.load(recipe_page) == {'recipe': recipe_dump_fixture}
 
 
 def test_recipe_get_404(app, monkeypatch):
