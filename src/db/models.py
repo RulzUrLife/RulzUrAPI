@@ -15,11 +15,6 @@ import db.orm
 class BaseModel(peewee.Model):
     """Define the common model configuration"""
 
-    def to_dict(self):
-        """Return the private attribute _data"""
-        return self._data
-
-
     @classmethod
     # pylint: disable=no-member
     def update(cls, **update):
@@ -84,16 +79,6 @@ class Recipe(BaseModel):
     utensils = None
     ingredients = None
 
-    def to_dict(self):
-        """Override to_dict to include utensils and ingredients
-
-        By default in peewee, foreign key linking does not appear in the field
-        attribute
-        """
-        data = super(Recipe, self).to_dict()
-        data['utensils'] = self.utensils or []
-        data['ingredients'] = self.ingredients or []
-        return data
 
 #pylint: disable=too-few-public-methods
 class RecipeIngredients(BaseModel):
