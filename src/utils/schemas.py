@@ -39,6 +39,17 @@ class PostSchema(marshmallow.Schema):
         exclude = ('id',)
 
 
+def validate_nested(field, needed_field, _, data):
+    """Utility function for generating error messages"""
+
+    if 'id' in data or 'name' in data:
+        return
+    raise marshmallow.ValidationError(
+        'Missing data for required field if \'%s\' field is not '
+        'provided.' % needed_field, field
+    )
+
+
 # pylint: disable=too-few-public-methods
 class NestedSchema(marshmallow.Schema):
     """Default configuration for a nested schema
@@ -55,15 +66,6 @@ class NestedSchema(marshmallow.Schema):
     def __init__(self, *args, **kwargs):
         super(NestedSchema, self).__init__(*args, **kwargs)
 
-        def validate_nested(field, needed_field, _, data):
-            """Utility function for generating error messages"""
-
-            if 'id' in data or 'name' in data:
-                return
-            raise marshmallow.ValidationError(
-                'Missing data for required field if \'%s\' field is not '
-                'provided.' % needed_field, field
-            )
 
         self.validator(functools.partial(validate_nested, 'id', 'name'))
         self.validator(functools.partial(validate_nested, 'name', 'id'))
@@ -219,6 +221,7 @@ class RecipeSchema(DefaultSchema):
         )
     )
 
+
 def validate_recipes(recipes):
     """Checks if all the recipes in the request exist in the db"""
     ids = [recipe['id'] for recipe in recipes]
@@ -263,5 +266,7 @@ ingredient_schema_post = IngredientPostSchema()
 ingredient_schema_list = IngredientListSchema()
 
 recipe_schema = RecipeSchema()
+recipe_schema_put = RecipeSchema(exclude=('id',))
 recipe_schema_post = RecipePostSchema()
 recipe_schema_list = RecipeListSchema()
+

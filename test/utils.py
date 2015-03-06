@@ -3,6 +3,8 @@
 import json
 import unittest.mock as mock
 
+import peewee
+
 #pylint: disable=too-few-public-methods
 class FakeModel(object):
     """FakeModel mocks BaseModel
@@ -23,6 +25,42 @@ def expression_assert(fn, expression, pos=0):
     """Compare the first argument with the expression __dict__"""
     (expression_arg,), _ = fn.call_args_list[pos]
     return expression_arg.__dict__ == expression.__dict__
+
+def _extract_call_dict(name, args, kwargs=None):
+    if kwargs is None:
+        args, kwargs = name, args
+
+    has_eq_overriden = lambda obj: (isinstance(obj, peewee.Model) or
+                                    isinstance(obj, peewee.Expression))
+    get_dict = lambda obj: obj.__dict__ if has_eq_overriden(obj) else obj
+
+    args = [get_dict(arg) for arg in args]
+    kwargs = {key: get_dict(value) for key, value in kwargs.items()}
+
+    return mock.call(args, kwargs)
+
+class _Call(mock._Call):
+
+    def __eq__(self, other):
+        self_replacement = _extract_call_dict(*self)
+
+        if isinstance(other, mock._Call):
+            other = _extract_call_dict(*other)
+
+        return super(_Call, self_replacement).__eq__(other)
+
+
+class MagicMock(mock.MagicMock):
+
+    def __init__(self, *args, **kwargs):
+        super(MagicMock, self).__init__(*args, **kwargs)
+        wraps = kwargs.get('wraps')
+
+        if wraps is None:
+            return
+
+        if isinstance(wraps, dict):
+            self.__getitem__.side_effect = wraps.__getitem__
 
 
 def load(page):
@@ -45,4 +83,12 @@ def update_mocking(rv):
         mocking.return_value = rv
 
     return mock_returning_update
+
+
+def send(method, url, data=None):
+    kwargs = {
+        'content_type': 'application/json',
+        'data': json.dumps(data) if data is not None else None
+    }
+    return method(url, **kwargs)
 

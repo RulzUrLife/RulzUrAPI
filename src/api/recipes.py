@@ -20,6 +20,21 @@ def get_recipe(recipe_id):
         raise utils.helpers.APIException('Recipe not found', 404)
 
 
+def select_recipes(where_clause):
+    return (models.Recipe
+            .select(models.Recipe,
+                    models.RecipeIngredients, models.Ingredient,
+                    models.RecipeUtensils, models.Utensil)
+            .join(models.RecipeIngredients)
+            .join(models.Ingredient)
+            .switch(models.Recipe)
+            .join(models.RecipeUtensils)
+            .join(models.Utensil)
+            .where(where_clause)
+            .aggregate_rows()
+            .execute())
+
+
 def lock_table(model):
     """Lock table to avoid race conditions"""
     model_entity = utils.helpers.model_entity(model)
@@ -34,9 +49,11 @@ def lock_table(model):
 def get_or_insert(model, elts_insert, elts_get):
     """Get the elements from a model or create them if they not exist"""
 
-    model.insert_many(elts_insert, model.name).execute()
-
-    elts_insert = [elt['name'] for elt in elts_insert]
+    if elts_insert:
+        model.insert_many(elts_insert, model.name).execute()
+        elts_insert = [elt['name'] for elt in elts_insert]
+    else:
+        elts_insert = []
 
     list_elts = lambda x: list(model.select().where(x))
     if elts_get and elts_insert:
@@ -65,7 +82,6 @@ def ingredients_parsing(ingrs):
         if ingr_name:
             ingrs_insert.append({'name': ingr_name})
             ingrs_name[ingr_name] = ingr
-
     db_ingrs = get_or_insert(models.Ingredient, ingrs_insert, ingrs_get)
 
     # wraps again the ingredients into recipe_ingredients dict
@@ -75,7 +91,6 @@ def ingredients_parsing(ingrs):
 
         ingr_tmp = ingrs_id.get(ingr_id) or ingrs_name.get(ingr_name)
         ingr_tmp['ingredient'] = ingr
-
     return ingrs
 
 def utensils_parsing(utensils):
@@ -88,19 +103,21 @@ def utensils_parsing(utensils):
 
 def update_recipe(recipe):
     """Update a recipe"""
+    delete_old_entries = lambda model, recipe_id: (
+        model.delete().where(model.recipe == recipe_id).execute()
+    )
     recipe_id = recipe.pop('id')
     ingredients = recipe.pop('ingredients', None)
     utensils = recipe.pop('utensils', None)
+
     recipe = (models.Recipe
               .update(**recipe)
               .where(models.Recipe.id == recipe_id)
               .returning()
               .execute())
+
     if ingredients is not None:
-        (models.RecipeIngredients
-         .delete()
-         .where(models.RecipeIngredients.recipe == recipe_id)
-         .execute())
+        delete_old_entries(models.RecipeIngredients, recipe_id)
         ingredients = ingredients_parsing(ingredients)
         for ingredient in ingredients:
             ingredient['recipe'] = recipe
@@ -115,11 +132,7 @@ def update_recipe(recipe):
         )
 
     if utensils is not None:
-        (models.RecipeUtensils
-         .delete()
-         .where(models.RecipeUtensils.recipe == recipe_id)
-         .execute())
-
+        delete_old_entries(models.RecipeUtensils, recipe_id)
         utensils = utensils_parsing(utensils)
 
         models.RecipeUtensils.insert_many([
@@ -148,10 +161,6 @@ class RecipeListAPI(flask_restful.Resource):
     @db.connector.database.transaction()
     def post(self):
         """Create a recipe"""
-        # avoid race condition by locking tables
-        lock_table(models.Utensil)
-        lock_table(models.Ingredient)
-
         recipe = utils.helpers.raise_or_return(
             utils.schemas.recipe_schema_post, flask.request.json
         )
@@ -163,9 +172,12 @@ class RecipeListAPI(flask_restful.Resource):
         if count:
             raise utils.helpers.APIException('Recipe already exists.', 409)
 
+        # avoid race condition by locking tables
+        lock_table(models.Utensil)
+        lock_table(models.Ingredient)
+
         ingredients = ingredients_parsing(recipe['ingredients'])
         utensils = utensils_parsing(recipe['utensils'])
-
         recipe = models.Recipe.create(**recipe)
         recipe.ingredients = ingredients
         recipe.utensils = utensils
@@ -180,7 +192,7 @@ class RecipeListAPI(flask_restful.Resource):
             ingredient['recipe'] = recipe
         models.RecipeIngredients.insert_many(ingredients).execute()
         return {
-            'recipe': utils.schemas.RecipeSchema().dump(recipe).data
+            'recipe': utils.schemas.recipe_schema.dump(recipe).data
         }, 201
 
 
@@ -196,7 +208,6 @@ class RecipeListAPI(flask_restful.Resource):
             utils.schemas.recipe_schema_list, flask.request.json
         )
         recipes = [update_recipe(recipe) for recipe in data['recipes']]
-
         return utils.schemas.recipe_schema_list.dump({'recipes': recipes}).data
 
 
@@ -208,21 +219,7 @@ class RecipeAPI(flask_restful.Resource):
     def get(self, recipe_id):
         """Provide the recipe for recipe_id"""
         try:
-            recipe = next(
-                models.Recipe
-                .select(models.Recipe,
-                        models.RecipeIngredients, models.Ingredient,
-                        models.RecipeUtensils, models.Utensil)
-                .join(models.RecipeIngredients)
-                .join(models.Ingredient)
-                .switch(models.Recipe)
-                .join(models.RecipeUtensils)
-                .join(models.Utensil)
-                .where(models.Recipe.id == recipe_id)
-                .aggregate_rows()
-                .execute()
-            )
-
+            recipe = next(select_recipes(models.Recipe.id == recipe_id))
         except StopIteration:
             raise utils.helpers.APIException('Recipe not found', 404)
 

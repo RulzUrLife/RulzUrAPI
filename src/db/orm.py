@@ -109,7 +109,14 @@ class UpdateQuery(peewee.UpdateQuery):
             ResultWrapper = peewee.ModelQueryResultWrapper
 
         meta = self.get_query_meta()
-        return next(ResultWrapper(self.model_class, self._execute(), meta))
+        try:
+            return next(ResultWrapper(self.model_class, self._execute(), meta))
+        except StopIteration:
+            raise self.model_class.DoesNotExist(
+                'Instance matching query does not exist:\nSQL: %s\nPARAMS: %s'
+                % self.sql()
+            )
+
 
 # pylint: disable=protected-access
 class QueryCompiler(peewee.QueryCompiler):

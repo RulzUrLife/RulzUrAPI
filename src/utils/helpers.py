@@ -7,29 +7,28 @@ class APIException(Exception):
     status_code = 400
 
     def __init__(self, message, status_code=None, payload=None):
-        super(APIException, self).__init__()
-        self.message = message
-        if status_code is not None:
-            self.status_code = status_code
-
-        self.payload = payload
-
-    def to_dict(self):
-        """This method dump the exception into a dict for jsonify"""
-        rv = dict(self.payload or ())
-        rv['message'] = self.message
-        rv['status'] = self.status_code
-        return rv
+        super(APIException, self).__init__(
+            message, status_code or self.status_code, payload
+        )
 
 def jsonify_api_exception(api_exception):
     """Return an http response wrapping an APIException"""
-    response = flask.jsonify(api_exception.to_dict())
-    response.status_code = api_exception.status_code
+    message, status_code, payload = api_exception.args
+
+    response_dict = {'message': message, 'status_code': status_code}
+    response_dict.update(dict(payload or ()))
+
+    response = flask.jsonify(response_dict)
+    response.status_code = status_code
     return response
 
-def raise_or_return(schema, data):
+def raise_or_return(schema):
     """Load the data in a dict, if errors are returned, an error is raised"""
-    data, errors = schema.load(data)
+    try:
+        data, errors = schema.load(flask.request.json)
+    except AttributeError:
+        raise APIException('Request malformed', 400,
+                           {'errors': 'JSON might be incorrect'})
     if errors:
         raise APIException('Request malformed', 400, {'errors': errors})
 
