@@ -1,6 +1,5 @@
 """API ingredients entrypoints"""
 
-import flask
 import flask_restful
 import api.recipes
 import db.models as models
@@ -20,6 +19,7 @@ def get_ingredient(ingredient_id):
 
 
 def update_ingredient(ingredient):
+    """Update an ingredient and return it"""
     ingredient_id = ingredient.pop('id')
 
     try:
@@ -99,7 +99,6 @@ class IngredientRecipeListAPI(flask_restful.Resource):
         """List all the recipes for ingredient_id"""
         get_ingredient(ingredient_id)
         where_clause = models.RecipeIngredients.ingredient == ingredient_id
-
         recipes = list(api.recipes.select_recipes(where_clause))
         recipes, _ = schemas.recipe_schema_list.dump({'recipes': recipes})
         return recipes

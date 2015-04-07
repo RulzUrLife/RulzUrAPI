@@ -51,7 +51,10 @@ def post_recipe_fixture_no_id():
 
 @pytest.fixture
 def recipe_dump_fixture():
+    """Generate recipe and its nested attrs"""
+
     def elts_process(elts, name):
+        """Nested element generator"""
         for i, elt in enumerate(elts):
             i += 1
             elt['id'] = i
@@ -66,10 +69,11 @@ def recipe_dump_fixture():
 
 @pytest.fixture
 def recipe_db_fixture():
+    """Generate a db like recipe"""
     rv = recipe_dump_fixture()
     # nest the ingredients to be as close as possible to the db returns
-    for i, ingr in enumerate(rv['ingredients']):
-        nested_elt = {'id': ingr.pop('id'),'name': ingr.pop('name')}
+    for ingr in rv['ingredients']:
+        nested_elt = {'id': ingr.pop('id'), 'name': ingr.pop('name')}
         ingr['ingredient'] = nested_elt
 
     return rv

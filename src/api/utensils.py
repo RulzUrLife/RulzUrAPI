@@ -1,6 +1,5 @@
 """API utensils entrypoints"""
 
-import flask
 import flask_restful
 import api.recipes
 import db.models
@@ -20,6 +19,7 @@ def get_utensil(utensil_id):
 
 
 def update_utensil(utensil):
+    """Update an utensil and return it"""
     utensil_id = utensil.pop('id')
 
     try:

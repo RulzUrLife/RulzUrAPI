@@ -19,7 +19,7 @@ if __name__ == "__main__":
         logger.setLevel(logging.DEBUG)
         logger.addHandler(logging.StreamHandler())
 
-    api.init_app().run(
+    api.app.run(
         host="0.0.0.0",
         debug=debug,
         threaded=True

@@ -1,6 +1,8 @@
+"""Test for schemas"""
+# pylint: disable=no-self-use, too-many-statements, too-many-locals,
+# pylint: disable=too-few-public-methods
 import copy
 import imp
-import unittest
 import unittest.mock as mock
 
 import marshmallow
@@ -12,9 +14,10 @@ import utils.schemas as schemas
 
 
 class TestUtensilSchemas(object):
+    """Test schemas related to utensils"""
 
     def test_utensil(self, utensil):
-
+        """Test simple utensil schema"""
         data, errors = schemas.utensil_schema.load(utensil)
         assert errors == {}
         assert data == utensil
@@ -31,6 +34,7 @@ class TestUtensilSchemas(object):
 
 
     def test_utensil_cleanup(self, utensil):
+        """Test marshmallow cleanup ability on utensil schema"""
         utensil['foo'] = 'bar'
         data, errors = schemas.utensil_schema.load(utensil)
         utensil.pop('foo')
@@ -39,6 +43,7 @@ class TestUtensilSchemas(object):
 
 
     def test_utensil_put(self, utensil_no_id):
+        """Test put utensil schema"""
         data, errors = schemas.utensil_schema_put.load(utensil_no_id)
         assert errors == {}
         assert data == utensil_no_id
@@ -49,6 +54,7 @@ class TestUtensilSchemas(object):
         assert data == utensil_no_id
 
     def test_utensil_put_cleanup(self, utensil_no_id):
+        """Test marshmallow cleanup on put method"""
         utensil_no_id['foo'] = 'bar'
         data, errors = schemas.utensil_schema_put.load(utensil_no_id)
         utensil_no_id.pop('foo')
@@ -57,6 +63,7 @@ class TestUtensilSchemas(object):
 
 
     def test_utensil_post(self, utensil_no_id):
+        """Test post utensil schema"""
         data, errors = schemas.utensil_schema_post.load(utensil_no_id)
         assert errors == {}
         assert data == utensil_no_id
@@ -68,6 +75,7 @@ class TestUtensilSchemas(object):
 
 
     def test_utensil_post_cleanup(self, utensil_no_id):
+        """Test marshmallow cleanup on post method"""
         utensil_no_id['foo'] = 'bar'
         data, errors = schemas.utensil_schema_post.load(utensil_no_id)
         utensil_no_id.pop('foo')
@@ -76,6 +84,7 @@ class TestUtensilSchemas(object):
 
 
     def test_utensil_list(self, utensils):
+        """Test utensil list schema"""
         data, errors = schemas.utensil_schema_list.load(utensils)
         assert errors == {}
         assert data == utensils
@@ -99,6 +108,7 @@ class TestUtensilSchemas(object):
 
 
     def test_utensil_list_cleanup(self, utensils):
+        """Test marshmallow cleanup on list schema"""
         utensils_copy = copy.deepcopy(utensils)
         utensils['foo'] = 'bar'
         utensils['utensils'][0]['foo'] = 'bar'
@@ -108,9 +118,10 @@ class TestUtensilSchemas(object):
 
 
 class TestIngredientSchemas(object):
+    """Test schemas related to ingredients"""
 
     def test_ingredient(self, ingredient):
-
+        """Test ingredient schema"""
         data, errors = schemas.ingredient_schema.load(ingredient)
         assert errors == {}
         assert data == ingredient
@@ -127,6 +138,7 @@ class TestIngredientSchemas(object):
 
 
     def test_ingredient_cleanup(self, ingredient):
+        """Test marshmallow cleanup on ingredient schema"""
         ingredient['foo'] = 'bar'
         data, errors = schemas.ingredient_schema.load(ingredient)
         ingredient.pop('foo')
@@ -135,6 +147,7 @@ class TestIngredientSchemas(object):
 
 
     def test_ingredient_put(self, ingredient_no_id):
+        """Test put ingredient schema"""
         data, errors = schemas.ingredient_schema_put.load(ingredient_no_id)
         assert errors == {}
         assert data == ingredient_no_id
@@ -145,6 +158,7 @@ class TestIngredientSchemas(object):
         assert data == ingredient_no_id
 
     def test_ingredient_put_cleanup(self, ingredient_no_id):
+        """Test marshmallow cleanup on ingredient put schema"""
         ingredient_no_id['foo'] = 'bar'
         data, errors = schemas.ingredient_schema_put.load(ingredient_no_id)
         ingredient_no_id.pop('foo')
@@ -153,6 +167,7 @@ class TestIngredientSchemas(object):
 
 
     def test_ingredient_post(self, ingredient_no_id):
+        """Test post ingredient schema"""
         data, errors = schemas.ingredient_schema_post.load(ingredient_no_id)
         assert errors == {}
         assert data == ingredient_no_id
@@ -164,6 +179,7 @@ class TestIngredientSchemas(object):
 
 
     def test_ingredient_post_cleanup(self, ingredient_no_id):
+        """Test marshmallow cleanup on ingredient post schema"""
         ingredient_no_id['foo'] = 'bar'
         data, errors = schemas.ingredient_schema_post.load(ingredient_no_id)
         ingredient_no_id.pop('foo')
@@ -172,6 +188,7 @@ class TestIngredientSchemas(object):
 
 
     def test_ingredient_list(self, ingredients):
+        """Test ingredient list schema"""
         data, errors = schemas.ingredient_schema_list.load(ingredients)
         assert errors == {}
         assert data == ingredients
@@ -195,6 +212,7 @@ class TestIngredientSchemas(object):
 
 
     def test_ingredient_list_cleanup(self, ingredients):
+        """Test marshmallow cleanup on ingredient list schema"""
         ingredients_copy = copy.deepcopy(ingredients)
         ingredients['foo'] = 'bar'
         ingredients['ingredients'][0]['foo'] = 'bar'
@@ -204,8 +222,10 @@ class TestIngredientSchemas(object):
 
 
 class TestRecipeIngredientsSchema(object):
+    """Test schemas related to RecipeIngredients"""
 
     def test_dump_dict(self, monkeypatch):
+        """Test the custom dump method on a dict"""
         mock_recipe_ingredients_dict = mock.MagicMock(spec=dict)
         update = mock_recipe_ingredients_dict.update
         get_item = mock_recipe_ingredients_dict.__getitem__
@@ -235,6 +255,7 @@ class TestRecipeIngredientsSchema(object):
 
 
     def test_dump_object(self, monkeypatch):
+        """Test the custom dump method on an object"""
         mock_recipe_ingredients_object = mock.MagicMock(
             spec=object, ingredient=mock.sentinel.ingredient
         )
@@ -264,8 +285,10 @@ class TestRecipeIngredientsSchema(object):
 
 
 class TestRecipeUtensilsSchema(object):
+    """Test schemas related to RecipeUtensils"""
 
     def test_dump(self, monkeypatch):
+        """Test the custom dump method"""
         mock_recipe_utensils = mock.Mock(spec=models.RecipeUtensils,
                                          utensil=mock.sentinel.utensil)
         mock_super_dump = mock.Mock(return_value=mock.sentinel.rv)
@@ -281,7 +304,10 @@ class TestRecipeUtensilsSchema(object):
 
 
 class TestValidateFunctions(object):
+    """Test validation functions"""
+
     def test_validate_nested_missing_attr(self):
+        """Test the validation function for nested elements"""
         data = {'foo': 'bar'}
 
         with pytest.raises(marshmallow.ValidationError) as excinfo:
@@ -292,15 +318,14 @@ class TestValidateFunctions(object):
         assert excinfo.value.field == mock.sentinel.field
 
         data = {'id': None, 'foo': 'bar'}
-        rv = schemas.validate_nested(None, None, None, data)
-        assert rv is None
+        schemas.validate_nested(None, None, None, data)
 
         data = {'name': None, 'foo': 'bar'}
-        rv = schemas.validate_nested(None, None, None, data)
-        assert rv is None
+        schemas.validate_nested(None, None, None, data)
 
 
     def test_validate_unique(self, monkeypatch, model):
+        """Test the validation for unique db constraint (mostly name attr)"""
         mock_model_select = mock.Mock()
         model_where = mock_model_select.return_value.where
         model_dicts = model_where.return_value.dicts
@@ -314,7 +339,7 @@ class TestValidateFunctions(object):
         schemas.validate_unique(model, field, elts)
 
         model_select_calls = [mock.call(model.name)]
-        model_where_exp = peewee.Expression(model.id, peewee.OP_IN, [1])
+        model_where_exp = peewee.Expression(model.id, peewee.OP.IN, [1])
 
         assert mock_model_select.call_args_list == model_select_calls
         assert model_where.call_args_list == [mock.call(model_where_exp)]
@@ -322,6 +347,7 @@ class TestValidateFunctions(object):
 
 
     def test_validate_unique_no_entry(self, monkeypatch, model):
+        """Test the unique validation if the element does not exist in db"""
         mock_model_select = mock.Mock()
         (mock_model_select.return_value
          .where.return_value
@@ -337,6 +363,7 @@ class TestValidateFunctions(object):
 
 
     def test_validate_unique_multiple_entries(self, monkeypatch, model):
+        """Test the unique validation for the same object multiple reference"""
         mock_model_select = mock.Mock()
         (mock_model_select.return_value
          .where.return_value
@@ -354,6 +381,7 @@ class TestValidateFunctions(object):
 
 
     def test_validate_recipes(self, monkeypatch):
+        """Test the validation function on put method for recipes"""
         mock_recipe_select = mock.Mock()
         recipe_where = mock_recipe_select.return_value.where
         recipe_count = recipe_where.return_value.count
@@ -364,7 +392,7 @@ class TestValidateFunctions(object):
         monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
         schemas.validate_recipes(recipes)
 
-        where_exp = peewee.Expression(models.Recipe.id, peewee.OP_IN, [1])
+        where_exp = peewee.Expression(models.Recipe.id, peewee.OP.IN, [1])
 
         assert mock_recipe_select.call_args_list == [mock.call()]
         assert recipe_where.call_args_list == [mock.call(where_exp)]
@@ -372,6 +400,7 @@ class TestValidateFunctions(object):
 
 
     def test_validate_recipes_no_entry(self, monkeypatch):
+        """Test recipes validation with errors"""
         mock_recipe_select = mock.Mock()
         (mock_recipe_select.return_value
          .where.return_value.count
@@ -388,10 +417,12 @@ class TestValidateFunctions(object):
 
 
 class TestRecipeSchema(object):
+    """Test schemas related to recipes"""
 
     @staticmethod
     @pytest.fixture
     def mock_validate_unique(monkeypatch):
+        """Fixture which provides mock objects for ingredients and utensils"""
         mock_unique_ingrs = mock.Mock()
         mock_unique_utensils = mock.Mock()
 
@@ -406,6 +437,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_init(self, monkeypatch):
+        """Test the initialization of recipe schema attributes"""
         mock_partial = mock.Mock()
 
         monkeypatch.setattr('functools.partial', mock_partial)
@@ -419,7 +451,10 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_validate(self, monkeypatch, mock_validate_unique, recipe):
+        """Test validation of a recipe"""
+
         def build_nested_calls(schema, elts):
+            """Generate list of calls for nested recipe attrs"""
             validate_nested_calls = []
             for elt in elts:
                 validate_id_call = mock.call('id', 'name', schema, elt)
@@ -461,6 +496,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe(self, mock_validate_unique, recipe):
+        """Test recipe schema"""
         del mock_validate_unique
 
         data, errors = schemas.recipe_schema.load(recipe)
@@ -514,6 +550,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_errors(self, mock_validate_unique, recipe):
+        """Test recipe schemas by introducing errors, and check messages"""
         del mock_validate_unique
 
         returned_errors = {}
@@ -558,6 +595,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_cleanup(self, mock_validate_unique, recipe):
+        """Test marshmallow cleanup on recipe schema"""
         del mock_validate_unique
 
         recipe['foo'] = 'bar'
@@ -568,6 +606,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_put(self, mock_validate_unique, recipe_no_id):
+        """Test put recipe schema"""
         del mock_validate_unique
 
         data, errors = schemas.recipe_schema_put.load(recipe_no_id)
@@ -616,6 +655,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_put_cleanup(self, mock_validate_unique, recipe_no_id):
+        """Test marshmallow cleanup on recipe put schema"""
         del mock_validate_unique
 
         recipe_no_id['foo'] = 'bar'
@@ -626,6 +666,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_post(self, mock_validate_unique, recipe_no_id):
+        """Test post recipe schema"""
         del mock_validate_unique
 
         returned_error = {}
@@ -712,6 +753,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_post_cleanup(self, mock_validate_unique, recipe_no_id):
+        """Test marshmallow cleanup on recipe post schema"""
         del mock_validate_unique
 
         recipe_no_id['foo'] = 'bar'
@@ -721,8 +763,8 @@ class TestRecipeSchema(object):
         assert data == recipe_no_id
 
 
-    def test_recipe_list_validate(self, monkeypatch, mock_validate_unique,
-                                  recipes):
+    def test_recipe_list_validate(self, recipes):
+        """Test recipe list schema validation"""
         mock_validate_recipes = mock.Mock()
         recipes_field = schemas.recipe_schema_list.fields['recipes']
         assert recipes_field.validators == [schemas.validate_recipes]
@@ -738,6 +780,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_list(self, mock_validate_unique, recipes):
+        """Test utensil list schema"""
         del mock_validate_unique
         schemas.recipe_schema_list.fields['recipes'].validators = [mock.Mock()]
 
@@ -767,6 +810,7 @@ class TestRecipeSchema(object):
 
 
     def test_recipe_list_cleanup(self, mock_validate_unique, recipes):
+        """Test marshmallow cleanup on utensil list schema"""
         del mock_validate_unique
         schemas.recipe_schema_list.fields['recipes'].validators = [mock.Mock()]
 

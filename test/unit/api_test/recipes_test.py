@@ -1,7 +1,5 @@
 """API endpoints testing"""
-
-import copy
-import json
+# pylint: disable=no-self-use, too-many-locals, too-many-statements, no-member
 import unittest.mock as mock
 
 import peewee
@@ -15,11 +13,12 @@ import utils.schemas as schemas
 
 
 class TestUtilityFunctions(object):
-
+    """Test suite for utility functions from the recipe endpoint"""
 
     @staticmethod
     @pytest.fixture
     def update_recipe_fixture_mocks(monkeypatch):
+        """fixture for update_recipe function"""
         mocks = dict(
             mock_recipe_update=mock.Mock(),
             mock_ingrs_select=mock.Mock(),
@@ -31,10 +30,13 @@ class TestUtilityFunctions(object):
             mock_utensils_insert=mock.Mock(),
             mock_utensils_parsing=mock.Mock()
         )
+
+        # pylint: disable=no-member
         mocks = type('Mocks', (object,), mocks)
 
         # monkeypatch all the things o/
-        monkeypatch.setattr('db.models.Recipe.update', mocks.mock_recipe_update)
+        monkeypatch.setattr('db.models.Recipe.update',
+                            mocks.mock_recipe_update)
         monkeypatch.setattr('db.models.RecipeIngredients.select',
                             mocks.mock_ingrs_select)
         monkeypatch.setattr('db.models.RecipeIngredients.delete',
@@ -57,8 +59,9 @@ class TestUtilityFunctions(object):
 
 
     def test_get_recipe(self, monkeypatch):
+        """Test the get_recipe method"""
         mock_recipe_get = mock.Mock(return_value=mock.sentinel.recipe)
-        get_clause = peewee.Expression(models.Recipe.id, peewee.OP_EQ,
+        get_clause = peewee.Expression(models.Recipe.id, peewee.OP.EQ,
                                        mock.sentinel.recipe_id)
         monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
         returned_recipe = api.recipes.get_recipe(mock.sentinel.recipe_id)
@@ -68,6 +71,7 @@ class TestUtilityFunctions(object):
 
 
     def test_get_recipe_404(self, monkeypatch):
+        """Test the get_recipe method with a non existing recipe"""
         mock_recipe_get = mock.Mock(side_effect=peewee.DoesNotExist)
 
         monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
@@ -78,6 +82,7 @@ class TestUtilityFunctions(object):
 
 
     def test_select_recipes(self, monkeypatch):
+        """Test the select_recipes method"""
         mock_rcp_select = mock.Mock()
         join_rcp_ingrs = mock_rcp_select.return_value.join
         join_ingr = join_rcp_ingrs.return_value.join
@@ -111,6 +116,7 @@ class TestUtilityFunctions(object):
 
 
     def test_lock_table(self, monkeypatch):
+        """Test the db lock_table feature"""
         mock_model_entity = mock.Mock(return_value=mock.sentinel.me)
         mock_execute_sql = mock.Mock()
 
@@ -127,6 +133,7 @@ class TestUtilityFunctions(object):
 
 
     def test_get_or_insert(self, monkeypatch, model):
+        """Test the get_or_insert function"""
         reset_mocks = lambda mocks: [mock.reset_mock() for mock in mocks]
         mock_model_insert_many = mock.Mock()
         insert_many_execute = mock_model_insert_many.return_value.execute
@@ -149,11 +156,11 @@ class TestUtilityFunctions(object):
 
         rv = api.recipes.get_or_insert(model, elts_insert, elts_get)
 
-        where_exp_get = peewee.Expression(model.id, peewee.OP_IN,
+        where_exp_get = peewee.Expression(model.id, peewee.OP.IN,
                                           [mock.sentinel.elt_get])
-        where_exp_insert = peewee.Expression(model.name, peewee.OP_IN,
+        where_exp_insert = peewee.Expression(model.name, peewee.OP.IN,
                                              [mock.sentinel.elt_insert])
-        where_exp = peewee.Expression(where_exp_get, peewee.OP_OR,
+        where_exp = peewee.Expression(where_exp_get, peewee.OP.OR,
                                       where_exp_insert)
 
         insert_many_calls = [mock.call(elts_insert, model.name)]
@@ -199,10 +206,11 @@ class TestUtilityFunctions(object):
 
 
     def test_ingredients_parsing(self, monkeypatch):
+        """Test the ingredients_parsing function"""
         mock_get_or_insert = mock.Mock()
         mock_get = mock.MagicMock()
         mock_insert = mock.MagicMock()
-        mock_db_get =  mock.Mock()
+        mock_db_get = mock.Mock()
         mock_db_insert = mock.Mock()
 
         get_id_sentinel = str(mock.sentinel.get_id)
@@ -238,6 +246,7 @@ class TestUtilityFunctions(object):
 
 
     def test_utensils_parsing(self, monkeypatch):
+        """Test utensils_parsing function"""
         mock_get_or_insert = mock.Mock()
         mock_get = mock.MagicMock()
         mock_insert = mock.MagicMock()
@@ -253,17 +262,18 @@ class TestUtilityFunctions(object):
 
         get_id_calls = [mock.call('id'), mock.call('id')]
         get_or_insert_calls = [
-            mock.call(models.Utensil, [mock_insert], mock.sentinel.get)
+            mock.call(models.Utensil, [mock_insert], [mock.sentinel.get])
         ]
 
         assert rv == mock.sentinel.get_or_insert_rv
         assert mock_get.get.call_args_list == get_id_calls
         assert mock_insert.get.call_args_list == get_id_calls
         assert mock_get.__getitem__.call_args_list == [mock.call('id')]
-        assert mock_get_or_insert.call_args_list
+        assert mock_get_or_insert.call_args_list == get_or_insert_calls
 
 
     def test_update_recipe(self, update_recipe_fixture_mocks):
+        """Test update_recipe function"""
         recipe = {str(mock.sentinel.recipe_attr): mock.sentinel.recipe_attr}
         mocks = update_recipe_fixture_mocks
         mock_recipe = mock.MagicMock(wraps=recipe)
@@ -286,7 +296,7 @@ class TestUtilityFunctions(object):
                      mock.call('ingredients', None),
                      mock.call('utensils', None)]
 
-        where_exp = peewee.Expression(models.Recipe.id, peewee.OP_EQ,
+        where_exp = peewee.Expression(models.Recipe.id, peewee.OP.EQ,
                                       mock.sentinel.recipe_id)
 
         assert rv == mock_db_recipe
@@ -309,7 +319,7 @@ class TestUtilityFunctions(object):
         ingrs_parsing_calls = [mock.call(mock.sentinel.ingrs)]
         ingr_setitem_calls = [mock.call('recipe', mock_db_recipe)]
         where_exp = peewee.Expression(models.RecipeIngredients.recipe,
-                                      peewee.OP_EQ, mock.sentinel.recipe_id)
+                                      peewee.OP.EQ, mock.sentinel.recipe_id)
 
         assert mock_ingrs_delete.call_args_list == [mock.call()]
         assert mocks.mock_ingrs_parsing.call_args_list == ingrs_parsing_calls
@@ -330,7 +340,7 @@ class TestUtilityFunctions(object):
         mock_utensils_parsing = mocks.mock_utensils_parsing
         utensils_parsing_calls = [mock.call(mock.sentinel.utensils)]
         where_exp = peewee.Expression(models.RecipeIngredients.recipe,
-                                      peewee.OP_EQ, mock.sentinel.recipe_id)
+                                      peewee.OP.EQ, mock.sentinel.recipe_id)
         utensil_elts = [{'recipe': mock_db_recipe,
                          'utensil': mock.sentinel.utensil}]
 
@@ -344,6 +354,7 @@ class TestUtilityFunctions(object):
 
 
     def test_update_recipe_no_foreign(self, update_recipe_fixture_mocks):
+        """Test update_recipe function with no foreign key linking"""
         mocks = update_recipe_fixture_mocks
         mock_recipe = mock.MagicMock(wraps={})
         mock_db_recipe = mock.Mock()
@@ -371,14 +382,14 @@ class TestUtilityFunctions(object):
                                         models.Ingredient)]
         ingrs_select_join_calls = [mock.call(models.Ingredient)]
         ingrs_select_where_calls = [mock.call(
-            peewee.Expression(models.RecipeIngredients.recipe, peewee.OP_EQ,
+            peewee.Expression(models.RecipeIngredients.recipe, peewee.OP.EQ,
                               mock.sentinel.recipe_id)
         )]
 
         utensils_select_calls = [mock.call()]
         utensils_select_join_calls = [mock.call(models.RecipeUtensils)]
         utensils_select_where_calls = [mock.call(
-            peewee.Expression(models.RecipeUtensils.recipe, peewee.OP_EQ,
+            peewee.Expression(models.RecipeUtensils.recipe, peewee.OP.EQ,
                               mock.sentinel.recipe_id)
         )]
 
@@ -400,11 +411,15 @@ class TestUtilityFunctions(object):
         )
 
 class TestRecipeAPI(object):
+    """Test the /recipes endpoint"""
 
-    def test_recipes_list(self, app, monkeypatch, recipes):
+    def test_recipes_list(self, app, monkeypatch):
+        """Test get /recipes/"""
+        mock_recipes = [str(mock.sentinel.recipe)]
         mock_recipe_select = mock.Mock()
+
         dicts = mock_recipe_select.return_value.dicts
-        dicts.return_value = recipes['recipes']
+        dicts.return_value = mock_recipes
 
         monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
         recipes_page = utils.send(app.get, '/recipes/')
@@ -412,7 +427,7 @@ class TestRecipeAPI(object):
         assert recipes_page.status_code == 200
         assert mock_recipe_select.call_args_list == [mock.call()]
         assert dicts.call_args_list == [mock.call()]
-        assert utils.load(recipes_page) == recipes
+        assert utils.load(recipes_page) == {'recipes': mock_recipes}
 
 
     def test_recipes_post(self, app, monkeypatch):
@@ -465,12 +480,12 @@ class TestRecipeAPI(object):
         recipe_count.return_value = 0
 
 
-        recipes_create_page = utils.send(app.post,'/recipes/', recipe)
+        recipes_create_page = utils.send(app.post, '/recipes/', recipe)
 
         lock_table_calls = [mock.call(models.Utensil),
                             mock.call(models.Ingredient)]
-        raise_or_return_calls = [mock.call(schema, recipe)]
-        recipe_where_exp = peewee.Expression(models.Recipe.name, peewee.OP_EQ,
+        raise_or_return_calls = [mock.call(schema)]
+        recipe_where_exp = peewee.Expression(models.Recipe.name, peewee.OP.EQ,
                                              mock_recipe.get('name'))
 
         ingrs_parsing_calls = [mock.call(mock_recipe['ingredients'])]
@@ -497,6 +512,7 @@ class TestRecipeAPI(object):
         }
 
     def test_utensils_post_409(self, app, monkeypatch):
+        """Test post /recipes/ with a conflict"""
         mock_raise_or_return = mock.Mock(return_value=mock.Mock(spec=dict))
         mock_recipe_select = mock.Mock()
 
@@ -508,7 +524,7 @@ class TestRecipeAPI(object):
                             mock_raise_or_return)
         monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
 
-        recipes_create_page = utils.send(app.post,'/recipes/', {})
+        recipes_create_page = utils.send(app.post, '/recipes/', {})
         error_msg = {'message': 'Recipe already exists.', 'status_code': 409}
 
         assert recipes_create_page.status_code == 409
@@ -543,13 +559,13 @@ class TestRecipeAPI(object):
         assert utils.load(recipes_update_page) == str(mock.sentinel.recipe)
 
         assert mock_lock_table.call_args_list == lock_table_calls
-        assert mock_raise_or_return.call_args_list == [mock.call(schema, {})]
+        assert mock_raise_or_return.call_args_list == [mock.call(schema)]
         assert mock_update_recipe.call_args_list == update_calls
         assert mock_recipe_schema_dump.call_args_list == schema_dump_calls
 
 
     def test_recipe_get(self, app, monkeypatch):
-        """Test /utensils/<id>"""
+        """Test get /recipes/<id>"""
         recipe = mock.sentinel.recipe
         mock_select_recipes = mock.Mock(return_value=iter([recipe]))
         mock_recipe_schema_dump = mock.Mock(return_value=(str(recipe), None))
@@ -561,7 +577,7 @@ class TestRecipeAPI(object):
         recipe_get_page = utils.send(app.get, '/recipes/1')
 
         select_recipes_calls = [mock.call(
-            peewee.Expression(models.Recipe.id, peewee.OP_EQ, 1)
+            peewee.Expression(models.Recipe.id, peewee.OP.EQ, 1)
         )]
 
         assert recipe_get_page.status_code == 200
@@ -572,6 +588,7 @@ class TestRecipeAPI(object):
 
 
     def test_recipe_get_404(self, app, monkeypatch):
+        """Test get /recipes/<id> with a non existing recipe"""
         mock_select_recipes = mock.Mock(side_effect=StopIteration)
 
         monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
@@ -606,7 +623,7 @@ class TestRecipeAPI(object):
                                         models.Ingredient)]
         ingrs_join_calls = [mock.call(models.Ingredient)]
         ingrs_where_calls = [mock.call(
-            peewee.Expression(models.RecipeIngredients.recipe, peewee.OP_EQ, 1)
+            peewee.Expression(models.RecipeIngredients.recipe, peewee.OP.EQ, 1)
         )]
         ingrs_dicts_calls = [mock.call()]
 
@@ -640,7 +657,7 @@ class TestRecipeAPI(object):
         utensils_select_calls = [mock.call()]
         utensils_join_calls = [mock.call(models.RecipeUtensils)]
         utensils_where_calls = [mock.call(
-            peewee.Expression(models.RecipeUtensils.recipe, peewee.OP_EQ, 1)
+            peewee.Expression(models.RecipeUtensils.recipe, peewee.OP.EQ, 1)
         )]
         utensils_dicts_calls = [mock.call()]
 

@@ -1,6 +1,5 @@
 """API recipes entrypoints"""
 import flask_restful
-import flask
 
 import peewee
 
@@ -21,6 +20,7 @@ def get_recipe(recipe_id):
 
 
 def select_recipes(where_clause):
+    """Select recipes according to where_clause"""
     return (models.Recipe
             .select(models.Recipe,
                     models.RecipeIngredients, models.Ingredient,
@@ -106,6 +106,7 @@ def update_recipe(recipe):
     delete_old_entries = lambda model, recipe_id: (
         model.delete().where(model.recipe == recipe_id).execute()
     )
+
     recipe_id = recipe.pop('id')
     ingredients = recipe.pop('ingredients', None)
     utensils = recipe.pop('utensils', None)
@@ -115,7 +116,6 @@ def update_recipe(recipe):
               .where(models.Recipe.id == recipe_id)
               .returning()
               .execute())
-
     if ingredients is not None:
         delete_old_entries(models.RecipeIngredients, recipe_id)
         ingredients = ingredients_parsing(ingredients)
@@ -162,7 +162,7 @@ class RecipeListAPI(flask_restful.Resource):
     def post(self):
         """Create a recipe"""
         recipe = utils.helpers.raise_or_return(
-            utils.schemas.recipe_schema_post, flask.request.json
+            utils.schemas.recipe_schema_post
         )
         count = (models.Recipe
                  .select()
@@ -204,9 +204,7 @@ class RecipeListAPI(flask_restful.Resource):
         lock_table(models.Utensil)
         lock_table(models.Ingredient)
 
-        data = utils.helpers.raise_or_return(
-            utils.schemas.recipe_schema_list, flask.request.json
-        )
+        data = utils.helpers.raise_or_return(utils.schemas.recipe_schema_list)
         recipes = [update_recipe(recipe) for recipe in data['recipes']]
         return utils.schemas.recipe_schema_list.dump({'recipes': recipes}).data
 

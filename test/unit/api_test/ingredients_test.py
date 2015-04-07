@@ -1,13 +1,12 @@
 """API ingredients endpoint testing"""
 import copy
-import json
 import unittest.mock as mock
 
 import peewee
 import pytest
 
 import api.ingredients
-import db.models
+import db.models as models
 import utils.schemas as schemas
 import utils.helpers as helpers
 
@@ -15,8 +14,9 @@ import test.utils as utils
 
 
 def test_get_ingredient(monkeypatch):
+    """Test the get ingredient method against API"""
     mock_ingredient_get = mock.Mock(return_value=mock.sentinel.ingredient)
-    get_clause = peewee.Expression(db.models.Ingredient.id, peewee.OP_EQ,
+    get_clause = peewee.Expression(models.Ingredient.id, peewee.OP.EQ,
                                    mock.sentinel.ingredient_id)
 
     monkeypatch.setattr('db.models.Ingredient.get', mock_ingredient_get)
@@ -29,6 +29,7 @@ def test_get_ingredient(monkeypatch):
 
 
 def test_get_ingredient_404(monkeypatch):
+    """Test the get ingredient method with ingredient not found"""
     mock_ingredient_get = mock.Mock(side_effect=peewee.DoesNotExist)
 
     monkeypatch.setattr('db.models.Ingredient.get', mock_ingredient_get)
@@ -39,8 +40,9 @@ def test_get_ingredient_404(monkeypatch):
 
 
 def test_update_ingredient(monkeypatch, ingredient):
+    """Test the update ingredient method against API"""
     ingredient['id'] = mock.sentinel.ingredient_id
-    where_exp = peewee.Expression(db.models.Ingredient.id, peewee.OP_EQ,
+    where_exp = peewee.Expression(models.Ingredient.id, peewee.OP.EQ,
                                   mock.sentinel.ingredient_id)
 
     mock_ingredient_update = mock.Mock()
@@ -62,6 +64,7 @@ def test_update_ingredient(monkeypatch, ingredient):
 
 
 def test_update_ingredient_404(monkeypatch, ingredient):
+    """Test the update ingredient method with ingredient not found"""
     mock_ingredient_update = mock.Mock(side_effect=peewee.DoesNotExist)
 
     monkeypatch.setattr('db.models.Ingredient.update', mock_ingredient_update)
@@ -101,7 +104,7 @@ def test_ingredients_post(app, monkeypatch, ingredient, ingredient_no_id):
     schema = schemas.ingredient_schema_post
     ingredient_create_calls = [mock.call(**ingredient_no_id)]
 
-    ingredients_create_page = utils.send(app.post,'/ingredients/',
+    ingredients_create_page = utils.send(app.post, '/ingredients/',
                                          ingredient_no_id)
 
     assert ingredients_create_page.status_code == 201
@@ -111,13 +114,14 @@ def test_ingredients_post(app, monkeypatch, ingredient, ingredient_no_id):
 
 
 def test_ingredients_post_409(app, monkeypatch, ingredient_no_id):
+    """Test post /ingredients/ with conflict"""
     mock_raise_or_return = mock.Mock(return_value=ingredient_no_id)
     mock_ingredient_create = mock.Mock(side_effect=peewee.IntegrityError)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('db.models.Ingredient.create', mock_ingredient_create)
 
-    ingredients_create_page = utils.send(app.post,'/ingredients/',
+    ingredients_create_page = utils.send(app.post, '/ingredients/',
                                          ingredient_no_id)
     error_msg = {'message': 'Ingredient already exists'}
 
@@ -138,7 +142,7 @@ def test_ingredients_put(app, monkeypatch, ingredients):
                         mock_update_ingredient)
 
     schema = schemas.ingredient_schema_list
-    ingredients_update_page = utils.send(app.put,'/ingredients/', ingredients)
+    ingredients_update_page = utils.send(app.put, '/ingredients/', ingredients)
 
     update_calls = [
         mock.call(ingredient) for ingredient in ingredients['ingredients']
@@ -150,6 +154,7 @@ def test_ingredients_put(app, monkeypatch, ingredients):
 
 
 def test_ingredients_put_with_exception(app, monkeypatch, ingredients):
+    """Test put /ingredients/ with an exception raise"""
     update_ingredient_returns = iter([
         helpers.APIException('Error')
         for _ in range(len(ingredients['ingredients']))
@@ -161,7 +166,7 @@ def test_ingredients_put_with_exception(app, monkeypatch, ingredients):
     monkeypatch.setattr('api.ingredients.update_ingredient',
                         mock_update_ingredient)
 
-    ingredients_update_page = utils.send(app.put,'/ingredients/', ingredients)
+    ingredients_update_page = utils.send(app.put, '/ingredients/', ingredients)
 
     update_calls = [
         mock.call(ingredient) for ingredient in ingredients['ingredients']
@@ -211,16 +216,34 @@ def test_ingredient_put(app, monkeypatch, ingredient):
     assert mock_update_ingredient.call_args_list == update_ingredient_calls
 
 
-def test_ingredient_get_recipes(app, monkeypatch, recipes):
+def test_ingredient_get_recipes(app, monkeypatch):
     """Test /ingredients/<id>/recipes"""
 
+    recipe = {str(mock.sentinel.recipe_key): str(mock.sentinel.recipe)}
+    mock_recipe = mock.MagicMock(wraps=recipe)
+
     mock_get_ingredient = mock.Mock()
-    mock_select_recipes = mock.Mock(return_value=recipes)
-    mock_recipe_dump = mock.Mock(return_value=(recipes, None))
+    mock_select_recipes = mock.Mock(return_value=[mock.sentinel.recipe])
+    mock_recipe_dump = mock.Mock(return_value=(mock_recipe, None))
 
     monkeypatch.setattr('api.ingredients.get_ingredient', mock_get_ingredient)
     monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
-    monkeypatch.setattr('utils.schemas.recipe_schema.dump', mock_recipe_dump)
+    monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
+                        mock_recipe_dump)
 
     ingredient_recipes_page = utils.send(app.get, '/ingredients/1/recipes')
+    select_recipes_calls = [mock.call(
+        peewee.Expression(models.RecipeIngredients.ingredient, peewee.OP.EQ, 1)
+    )]
+
+    assert ingredient_recipes_page.status_code == 200
+
+    assert utils.load(ingredient_recipes_page) == recipe
+
+    assert mock_get_ingredient.call_args_list == [mock.call(1)]
+    assert mock_select_recipes.call_args_list == select_recipes_calls
+    assert mock_recipe_dump.call_args_list == [mock.call({
+        'recipes': [mock.sentinel.recipe]
+    })]
+
 

@@ -5,7 +5,7 @@ import unittest.mock as mock
 
 import peewee
 
-#pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods
 class FakeModel(object):
     """FakeModel mocks BaseModel
 
@@ -27,6 +27,7 @@ def expression_assert(fn, expression, pos=0):
     return expression_arg.__dict__ == expression.__dict__
 
 def _extract_call_dict(name, args, kwargs=None):
+    """utility function which extract the __dict__ attribute for comparison"""
     if kwargs is None:
         args, kwargs = name, args
 
@@ -39,7 +40,9 @@ def _extract_call_dict(name, args, kwargs=None):
 
     return mock.call(args, kwargs)
 
+# pylint: disable=protected-access
 class _Call(mock._Call):
+    """Override mock.call in order to compare Expressions from peewee"""
 
     def __eq__(self, other):
         self_replacement = _extract_call_dict(*self)
@@ -51,7 +54,7 @@ class _Call(mock._Call):
 
 
 class MagicMock(mock.MagicMock):
-
+    """Override mock.MagicMock to support magic methods"""
     def __init__(self, *args, **kwargs):
         super(MagicMock, self).__init__(*args, **kwargs)
         wraps = kwargs.get('wraps')
@@ -85,10 +88,21 @@ def update_mocking(rv):
     return mock_returning_update
 
 
+class MockEncoder(json.JSONEncoder):
+    """Custom encoder which can dump Mock objects"""
+
+    # pylint: disable=method-hidden
+    def default(self, obj):
+        if isinstance(obj, mock.Mock) and obj._mock_wraps:
+            return obj._mock_wraps
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
+
 def send(method, url, data=None):
+    """Helper to send data from test to the application"""
     kwargs = {
         'content_type': 'application/json',
-        'data': json.dumps(data) if data is not None else None
+        'data': json.dumps(data, cls=MockEncoder) if data is not None else None
     }
     return method(url, **kwargs)
 

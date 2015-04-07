@@ -1,6 +1,5 @@
 """"Test rulzurapi helpers"""
 
-import json
 import unittest.mock as mock
 
 import pytest
@@ -9,6 +8,7 @@ import utils.helpers as helpers
 import test.utils as utils
 
 def test_api_exception():
+    """Test APIException"""
     api_exception = helpers.APIException('Error Message')
     assert api_exception.args == ('Error Message', 400, None)
 
@@ -20,6 +20,7 @@ def test_api_exception():
 
 
 def test_jsonify_api_exception(app):
+    """Test the jsonify result of APIException"""
     error_msg = {'message': 'Error Message', 'status_code': 400}
     api_exception = helpers.APIException('Error Message')
 
@@ -38,12 +39,14 @@ def test_jsonify_api_exception(app):
 
 
 def test_raise_or_return(app, monkeypatch):
+    """Test the raise_or_return function without error"""
+
     mock_schema_load = mock.Mock(return_value=(mock.sentinel.rv, None))
     mock_schema = mock.Mock(load=mock_schema_load)
     mock_flask_request = mock.Mock(json=mock.sentinel.request_json)
 
     schema_load_calls = [mock.call(mock.sentinel.request_json)]
-    with app.application.test_request_context() as request_context:
+    with app.application.test_request_context():
         monkeypatch.setattr('flask.request', mock_flask_request)
         rv = helpers.raise_or_return(mock_schema)
 
@@ -52,11 +55,13 @@ def test_raise_or_return(app, monkeypatch):
 
 
 def test_raise_or_return_error(app):
+    """Test the raise_or_return function with error"""
+
     mock_schema_load = mock.Mock(side_effect=AttributeError)
     mock_schema = mock.Mock(load=mock_schema_load)
     api_exc = ('Request malformed', 400, {'errors': 'JSON might be incorrect'})
 
-    with app.application.test_request_context() as request_context:
+    with app.application.test_request_context():
         with pytest.raises(helpers.APIException) as excinfo:
             helpers.raise_or_return(mock_schema)
 
@@ -66,7 +71,7 @@ def test_raise_or_return_error(app):
     mock_schema = mock.Mock(load=mock_schema_load)
     api_exc = ('Request malformed', 400, {'errors': mock.sentinel.errors})
 
-    with app.application.test_request_context() as request_context:
+    with app.application.test_request_context():
         with pytest.raises(helpers.APIException) as excinfo:
             helpers.raise_or_return(mock_schema)
 
@@ -74,10 +79,14 @@ def test_raise_or_return_error(app):
 
 
 def test_model_entity(monkeypatch):
+    """Test the model_entity helper"""
+
     mock_model_as_entity = mock.Mock(return_value=mock.sentinel.entity)
     mock_model = mock.Mock(_as_entity=mock_model_as_entity)
 
     mock_query_compiler = mock.Mock()
+
+    # pylint: disable=protected-access
     mock_parse_entity = mock_query_compiler.return_value._parse_entity
     mock_parse_entity.return_value = (mock.sentinel.model_entity, None)
 

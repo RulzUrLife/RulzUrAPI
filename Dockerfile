@@ -10,7 +10,7 @@ COPY requirements-tests.txt /opt/requirements/
 COPY misc/default_app.py /opt/rulzurapi/src/app.py
 
 ENV PYTHONDONTWRITEBYTECODE 1
-ENV DEBUG 1
+ENV DEBUG 0
 
 ENV WORKDIR /opt/rulzurapi
 ENV PYTHONPATH ${WORKDIR}/src

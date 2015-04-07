@@ -1,9 +1,10 @@
 """Configuration and fixture for unit testing"""
-import collections
 import imp
+import json
 import unittest.mock
 
 import ipdb
+import flask
 import peewee
 import pytest
 
@@ -21,21 +22,35 @@ def mock_transaction():
     imp.reload(api.utensils)
     imp.reload(api.ingredients)
     imp.reload(api.recipes)
+    imp.reload(api)
 
 mock_transaction()
 
 # Override mock.call to be compliant with peewee __eq__ override
-unittest.mock._Call = test.utils._Call
+unittest.mock._Call = test.utils._Call # pylint: disable=protected-access
 unittest.mock.MagicMock = test.utils.MagicMock
+
 
 @pytest.fixture(autouse=True)
 def app():
     """Load flask in testing mode"""
-    app_test = api.init_app()
+    app_test = api.app
     app_test.config['TESTING'] = True
+
+    # pylint: disable=unused-variable
+    @api.public_api.representation('application/json')
+    def output_json(data, code, headers=None):
+        """Replace default json encoder to support Mock object"""
+        resp = flask.make_response(
+            json.dumps(data, cls=test.utils.MockEncoder), code
+        )
+        resp.headers.extend(headers or {})
+        return resp
+
     return app_test.test_client()
 
 def remove_id(elt):
+    """Remove the "id" field of a dict like object"""
     elt.pop('id', None)
     return elt
 
@@ -52,33 +67,38 @@ def debug():
 
 @pytest.fixture
 def utensil():
+    """utensil fixture"""
     return {'id': 1, 'name': 'utensil_1'}
 
 @pytest.fixture
 def utensil_no_id():
+    """utensil with no id fixture"""
     return remove_id(utensil())
 
 @pytest.fixture
 def utensils():
+    """list of utensils fixture"""
     return {'utensils': [utensil(), utensil(), utensil()]}
 
 @pytest.fixture
 def ingredient():
+    """ingredient fixture"""
     return {'id': 1, 'name': 'ingredient_1'}
 
 @pytest.fixture
 def ingredient_no_id():
+    """ingredient with no id fixture"""
     return remove_id(ingredient())
 
 @pytest.fixture
 def ingredients():
+    """list of ingredients fixture"""
     return {'ingredients': [ingredient(), ingredient(), ingredient()]}
 
 
 @pytest.fixture
 def recipe():
-    # we need to define an order because fields validation depends on the order
-    # of the pop function
+    """recipe fixture"""
     return {
         'id': 1,
         'name': 'recipe_1',
@@ -97,18 +117,17 @@ def recipe():
 
 @pytest.fixture
 def recipe_no_id():
+    """recipe with no id fixture"""
     return remove_id(recipe())
 
 @pytest.fixture
 def recipes():
+    """list of recipe fixture"""
     return {'recipes': [recipe(), recipe()]}
 
 @pytest.fixture
 def model():
     """Create a fake model for testing purpose"""
+    attrs = dict(id=peewee.PrimaryKeyField(), name=peewee.CharField())
 
-    class FakeModel(peewee.Model):
-        id = peewee.PrimaryKeyField()
-        name = peewee.CharField()
-
-    return FakeModel
+    return type('FakeModel', (peewee.Model,), attrs)

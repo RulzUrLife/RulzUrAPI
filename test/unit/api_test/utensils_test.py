@@ -1,13 +1,12 @@
 """API utensils endpoint testing"""
-import copy
-import json
+# pylint: disable=no-self-use, too-many-locals, too-many-statements, no-member
 import unittest.mock as mock
 
 import peewee
 import pytest
 
 import api.utensils
-import db.models
+import db.models as models
 import utils.schemas as schemas
 import utils.helpers as helpers
 
@@ -15,8 +14,9 @@ import test.utils as utils
 
 
 def test_get_utensil(monkeypatch):
+    """Test the api.utensils.get_utensil function"""
     mock_utensil_get = mock.Mock(return_value=mock.sentinel.utensil)
-    get_clause = peewee.Expression(db.models.Utensil.id, peewee.OP_EQ,
+    get_clause = peewee.Expression(models.Utensil.id, peewee.OP.EQ,
                                    mock.sentinel.utensil_id)
 
     monkeypatch.setattr('db.models.Utensil.get', mock_utensil_get)
@@ -27,6 +27,7 @@ def test_get_utensil(monkeypatch):
 
 
 def test_get_utensil_404(monkeypatch):
+    """Test the api.utensils.get_utensil function with inexistent element"""
     mock_utensil_get = mock.Mock(side_effect=peewee.DoesNotExist)
 
     monkeypatch.setattr('db.models.Utensil.get', mock_utensil_get)
@@ -37,8 +38,9 @@ def test_get_utensil_404(monkeypatch):
 
 
 def test_update_utensil(monkeypatch, utensil):
+    """Test api.utensils.update_utensil function"""
     utensil['id'] = mock.sentinel.utensil_id
-    where_exp = peewee.Expression(db.models.Utensil.id, peewee.OP_EQ,
+    where_exp = peewee.Expression(models.Utensil.id, peewee.OP.EQ,
                                   mock.sentinel.utensil_id)
 
     mock_utensil_update = mock.Mock()
@@ -60,6 +62,7 @@ def test_update_utensil(monkeypatch, utensil):
 
 
 def test_update_utensil_404(monkeypatch, utensil):
+    """Test the api.utensils.update_utensil function with inexistent element"""
     mock_utensil_update = mock.Mock(side_effect=peewee.DoesNotExist)
 
     monkeypatch.setattr('db.models.Utensil.update', mock_utensil_update)
@@ -85,80 +88,88 @@ def test_utensils_list(app, monkeypatch, utensils):
     assert utils.load(utensils_page) == utensils
 
 
-def test_utensils_post(app, monkeypatch, utensil, utensil_no_id):
+def test_utensils_post(app, monkeypatch):
     """Test post /utensils/"""
-
-    mock_raise_or_return = mock.Mock(return_value=utensil_no_id)
-    mock_utensil_create = mock.Mock(return_value=utils.FakeModel(utensil))
+    utensil = {
+        str(mock.sentinel.utensil_key): str(mock.sentinel.utensil)
+    }
+    mock_utensil = mock.MagicMock(wraps=utensil)
+    mock_raise_or_return = mock.Mock(return_value=mock_utensil)
+    mock_utensil_create = mock.Mock(return_value=mock.sentinel.utensil)
+    mock_utensil_schema_dump = mock.Mock(return_value=(mock_utensil, None))
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('db.models.Utensil.create', mock_utensil_create)
+    monkeypatch.setattr('utils.schemas.utensil_schema.dump',
+                        mock_utensil_schema_dump)
 
     schema = schemas.utensil_schema_post
-    utensils_create_page = utils.send(app.post,'/utensils/', utensil_no_id)
+    utensils_create_page = utils.send(app.post, '/utensils/', mock_utensil)
 
     assert utensils_create_page.status_code == 201
     assert utils.load(utensils_create_page) == {'utensil': utensil}
-    assert mock_utensil_create.call_args_list == [mock.call(**utensil_no_id)]
+    assert mock_utensil_create.call_args_list == [mock.call(**utensil)]
     assert mock_raise_or_return.call_args_list == [mock.call(schema)]
 
 
-def test_utensils_post_409(app, monkeypatch, utensil_no_id):
-    mock_raise_or_return = mock.Mock(return_value=utensil_no_id)
+def test_utensils_post_409(app, monkeypatch):
+    """Test post /utensils/ with conflict"""
+    mock_raise_or_return = mock.Mock(return_value=mock.MagicMock(spec=dict))
     mock_utensil_create = mock.Mock(side_effect=peewee.IntegrityError)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('db.models.Utensil.create', mock_utensil_create)
 
-    utensils_create_page = utils.send(app.post,'/utensils/', utensil_no_id)
+    utensils_create_page = utils.send(app.post, '/utensils/', {})
     error_msg = {'message': 'Utensil already exists'}
 
     assert utensils_create_page.status_code == 409
     assert utils.load(utensils_create_page) == error_msg
 
 
-def test_utensils_put(app, monkeypatch, utensils):
+def test_utensils_put(app, monkeypatch):
     """Test put /utensils/"""
+    utensil = str(mock.sentinel.utensil)
+    utensils = {'utensils': [utensil]}
 
     mock_raise_or_return = mock.Mock(return_value=utensils)
-    mock_update_utensil = mock.Mock(side_effect=iter(utensils['utensils']))
+    mock_update_utensil = mock.Mock(return_value=utensil)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
 
     schema = schemas.utensil_schema_list
-    utensils_update_page = utils.send(app.put,'/utensils/', utensils)
+    utensils_update_page = utils.send(app.put, '/utensils/', utensils)
 
-    update_calls = [mock.call(utensil) for utensil in utensils['utensils']]
     assert utensils_update_page.status_code == 200
     assert utils.load(utensils_update_page) == utensils
-    assert mock_update_utensil.call_args_list == update_calls
+    assert mock_update_utensil.call_args_list == [mock.call(utensil)]
     assert mock_raise_or_return.call_args_list == [mock.call(schema)]
 
 
-def test_utensils_put_with_exception(app, monkeypatch, utensils):
-    update_utensil_returns = iter([
-        helpers.APIException('Error') for _ in range(len(utensils['utensils']))
-    ])
+def test_utensils_put_with_exception(app, monkeypatch):
+    """Test put /utensils/ with possible conflict"""
+    utensil = str(mock.sentinel.utensil)
+    utensils = {'utensils': [utensil]}
     mock_raise_or_return = mock.Mock(return_value=utensils)
-    mock_update_utensil = mock.Mock(side_effect=update_utensil_returns)
+    mock_update_utensil = mock.Mock(side_effect=helpers.APIException('Error'))
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
 
-    utensils_update_page = utils.send(app.put,'/utensils/', utensils)
+    utensils_update_page = utils.send(app.put, '/utensils/', utensils)
 
-    update_calls = [mock.call(utensil) for utensil in utensils['utensils']]
+    update_calls = [mock.call(utensil)]
     assert utensils_update_page.status_code == 200
     assert utils.load(utensils_update_page) == {'utensils': []}
     assert mock_update_utensil.call_args_list == update_calls
 
 
-def test_utensil_get(app, monkeypatch, utensil):
+def test_utensil_get(app, monkeypatch):
     """Test /utensils/<id>"""
     sentinel_utensil = mock.sentinel.utensil
     mock_get_utensil = mock.Mock(return_value=sentinel_utensil)
-    mock_utensil_dump = mock.Mock(return_value=(utensil, None))
+    mock_utensil_dump = mock.Mock(return_value=(str(sentinel_utensil), None))
 
     monkeypatch.setattr('api.utensils.get_utensil', mock_get_utensil)
     monkeypatch.setattr('utils.schemas.utensil_schema.dump', mock_utensil_dump)
@@ -166,17 +177,16 @@ def test_utensil_get(app, monkeypatch, utensil):
     utensil_page = utils.send(app.get, '/utensils/1')
 
     assert utensil_page.status_code == 200
-    assert utils.load(utensil_page) == {'utensil': utensil}
+    assert utils.load(utensil_page) == {'utensil': str(sentinel_utensil)}
     assert mock_get_utensil.call_args_list == [mock.call(1)]
     assert mock_utensil_dump.call_args_list == [mock.call(sentinel_utensil)]
 
 
-def test_utensil_put(app, monkeypatch, utensil):
+def test_utensil_put(app, monkeypatch):
     """Test put /utensils/<id>"""
-    utensil_copy = copy.deepcopy(utensil)
-    utensil_copy['id'] = 2
-
-    mock_raise_or_return = mock.Mock(return_value=utensil)
+    utensil = str(mock.sentinel.utensil)
+    mock_utensil = mock.MagicMock(spec=dict)
+    mock_raise_or_return = mock.Mock(return_value=mock_utensil)
     mock_update_utensil = mock.Mock(return_value=utensil)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
@@ -188,19 +198,31 @@ def test_utensil_put(app, monkeypatch, utensil):
     assert utensil_put_page.status_code == 200
     assert utils.load(utensil_put_page) == {'utensil': utensil}
     assert mock_raise_or_return.call_args_list == [mock.call(schema)]
-    assert mock_update_utensil.call_args_list == [mock.call(utensil_copy)]
+    assert mock_update_utensil.call_args_list == [mock.call(mock_utensil)]
 
 
-def test_utensil_get_recipes(app, monkeypatch, recipes):
+def test_utensil_get_recipes(app, monkeypatch):
     """Test /utensils/<id>/recipes"""
-
+    recipes = [str(mock.sentinel.recipe)]
     mock_get_utensil = mock.Mock()
     mock_select_recipes = mock.Mock(return_value=recipes)
     mock_recipe_dump = mock.Mock(return_value=(recipes, None))
 
     monkeypatch.setattr('api.utensils.get_utensil', mock_get_utensil)
     monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
-    monkeypatch.setattr('utils.schemas.recipe_schema.dump', mock_recipe_dump)
+    monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
+                        mock_recipe_dump)
 
     utensil_recipes_page = utils.send(app.get, '/utensils/1/recipes')
+
+    select_recipes_calls = [mock.call(
+        peewee.Expression(models.RecipeUtensils.utensil, peewee.OP.EQ, 1)
+    )]
+
+    assert utensil_recipes_page.status_code == 200
+    assert utils.load(utensil_recipes_page) == recipes
+
+    assert mock_get_utensil.call_args_list == [mock.call(1)]
+    assert mock_select_recipes.call_args_list == select_recipes_calls
+    assert mock_recipe_dump.call_args_list == [mock.call({'recipes': recipes})]
 
