@@ -1,5 +1,4 @@
 flask
 peewee
 psycopg2
-flask_restful
 marshmallow

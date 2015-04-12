@@ -17,10 +17,7 @@ def jsonify_api_exception(api_exception):
 
     response_dict = {'message': message, 'status_code': status_code}
     response_dict.update(dict(payload or ()))
-
-    response = flask.jsonify(response_dict)
-    response.status_code = status_code
-    return response
+    return flask.jsonify(response_dict), status_code
 
 def raise_or_return(schema):
     """Load the data in a dict, if errors are returned, an error is raised"""
@@ -46,4 +43,22 @@ def model_entity(model):
     )
     return me
 
+def unpack(value):
+    """Return a three tuple of data, code, and headers"""
+    if not isinstance(value, tuple):
+        return value, 200, {}
+
+    try:
+        data, code, headers = value
+        return data, code, headers
+    except ValueError:
+        pass
+
+    try:
+        data, code = value
+        return data, code, {}
+    except ValueError:
+        pass
+
+    return value, 200, {}
 

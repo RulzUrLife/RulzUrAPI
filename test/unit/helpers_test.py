@@ -25,16 +25,16 @@ def test_jsonify_api_exception(app):
     api_exception = helpers.APIException('Error Message')
 
     with app.application.test_request_context():
-        response = helpers.jsonify_api_exception(api_exception)
-        assert response.status_code == 400
+        response, status_code = helpers.jsonify_api_exception(api_exception)
+        assert status_code == 400
         assert utils.load(response) == error_msg
 
     error_msg = {'message': 'Error Message', 'status_code': 500, 'foo': 'bar'}
     api_exception = helpers.APIException('Error Message', 500, {'foo': 'bar'})
 
     with app.application.test_request_context():
-        response = helpers.jsonify_api_exception(api_exception)
-        assert response.status_code == 500
+        response, status_code = helpers.jsonify_api_exception(api_exception)
+        assert status_code == 500
         assert utils.load(response) == error_msg
 
 

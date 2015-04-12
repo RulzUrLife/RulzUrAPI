@@ -533,15 +533,18 @@ class TestRecipeAPI(object):
 
     def test_recipes_put(self, app, monkeypatch):
         """Test put /recipes/"""
+        recipe = {str(mock.sentinel.recipe_key): str(mock.sentinel.recipe)}
+        recipes = {'recipes': [recipe]}
+        mock_recipes = mock.MagicMock(wraps=recipes, spec=dict)
+
         schema = schemas.recipe_schema_list
-        recipes = {'recipes': [mock.sentinel.recipe]}
+
         mock_lock_table = mock.Mock()
         mock_raise_or_return = mock.Mock(return_value=recipes)
         mock_update_recipe = mock.Mock(return_value=mock.sentinel.recipe)
         mock_recipe_schema_dump = mock.Mock(
-            return_value=mock.Mock(data=str(mock.sentinel.recipe))
+            return_value=mock.Mock(data=mock_recipes)
         )
-
 
         monkeypatch.setattr('api.recipes.lock_table', mock_lock_table)
         monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
@@ -550,13 +553,13 @@ class TestRecipeAPI(object):
 
         lock_table_calls = [mock.call(models.Utensil),
                             mock.call(models.Ingredient)]
-        schema_dump_calls = [mock.call(recipes)]
-        update_calls = [mock.call(mock.sentinel.recipe)]
+        schema_dump_calls = [mock.call({'recipes': [mock.sentinel.recipe]})]
+        update_calls = [mock.call(recipe)]
 
         recipes_update_page = utils.send(app.put, '/recipes/', {})
 
         assert recipes_update_page.status_code == 200
-        assert utils.load(recipes_update_page) == str(mock.sentinel.recipe)
+        assert utils.load(recipes_update_page) == recipes
 
         assert mock_lock_table.call_args_list == lock_table_calls
         assert mock_raise_or_return.call_args_list == [mock.call(schema)]
@@ -574,7 +577,7 @@ class TestRecipeAPI(object):
         monkeypatch.setattr('utils.schemas.recipe_schema.dump',
                             mock_recipe_schema_dump)
 
-        recipe_get_page = utils.send(app.get, '/recipes/1')
+        recipe_get_page = utils.send(app.get, '/recipes/1/')
 
         select_recipes_calls = [mock.call(
             peewee.Expression(models.Recipe.id, peewee.OP.EQ, 1)
@@ -593,7 +596,7 @@ class TestRecipeAPI(object):
 
         monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
 
-        recipe_get_page = utils.send(app.get, '/recipes/1')
+        recipe_get_page = utils.send(app.get, '/recipes/1/')
 
         assert recipe_get_page.status_code == 404
         assert utils.load(recipe_get_page) == {'status_code': 404,
@@ -616,7 +619,7 @@ class TestRecipeAPI(object):
         ingrs_dicts = ingrs_where.return_value.dicts
         ingrs_dicts.return_value = ingrs
 
-        recipe_ingrs_page = utils.send(app.get, '/recipes/1/ingredients')
+        recipe_ingrs_page = utils.send(app.get, '/recipes/1/ingredients/')
 
         ingrs_select_calls = [mock.call(models.RecipeIngredients.quantity,
                                         models.RecipeIngredients.measurement,
@@ -652,7 +655,7 @@ class TestRecipeAPI(object):
         utensils_dicts = utensils_where.return_value.dicts
         utensils_dicts.return_value = utensils
 
-        recipe_utensils_page = utils.send(app.get, '/recipes/1/utensils')
+        recipe_utensils_page = utils.send(app.get, '/recipes/1/utensils/')
 
         utensils_select_calls = [mock.call()]
         utensils_join_calls = [mock.call(models.RecipeUtensils)]

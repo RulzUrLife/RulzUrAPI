@@ -10,7 +10,6 @@ initialization accross the codebase
 import os
 
 import flask
-import flask_restful
 import utils.helpers
 
 import api.recipes
@@ -18,68 +17,24 @@ import api.utensils
 import api.ingredients
 
 
-app = flask.Flask(__name__)
-public_api = flask_restful.Api(app)
+# pylint: disable=too-few-public-methods
+class Flask(flask.Flask):
+    """RulzUrKitchen specific Flask app"""
+
+    def make_response(self, rv):
+        data, code, headers = utils.helpers.unpack(rv)
+        if isinstance(data, dict):
+            rv = flask.jsonify(data), code, headers
+        return super(Flask, self).make_response(rv)
+
+app = Flask(__name__)
 
 # Register error handlers
 app.register_error_handler(
     utils.helpers.APIException, utils.helpers.jsonify_api_exception
 )
 
-# Utensils endpoints
-public_api.add_resource(
-    api.utensils.UtensilListAPI,
-    '/utensils/',
-    endpoint='utensils'
-)
-public_api.add_resource(
-    api.utensils.UtensilAPI,
-    '/utensils/<int:utensil_id>',
-    endpoint='utensil'
-)
-public_api.add_resource(
-    api.utensils.UtensilRecipeListAPI,
-    '/utensils/<int:utensil_id>/recipes',
-    endpoint='utensil_recipes'
-)
-
-# Ingredients endpoints
-public_api.add_resource(
-    api.ingredients.IngredientListAPI,
-    '/ingredients/',
-    endpoint='ingredients'
-)
-public_api.add_resource(
-    api.ingredients.IngredientAPI,
-    '/ingredients/<int:ingredient_id>',
-    endpoint='ingredient'
-)
-public_api.add_resource(
-    api.ingredients.IngredientRecipeListAPI,
-    '/ingredients/<int:ingredient_id>/recipes',
-    endpoint='ingredient_recipes'
-)
-
-# Recipes endpoints
-public_api.add_resource(
-    api.recipes.RecipeListAPI,
-    '/recipes/',
-    endpoint='recipes'
-)
-public_api.add_resource(
-    api.recipes.RecipeAPI,
-    '/recipes/<int:recipe_id>',
-    endpoint='recipe'
-)
-public_api.add_resource(
-    api.recipes.RecipeUtensilListAPI,
-    '/recipes/<int:recipe_id>/utensils',
-    endpoint='recipe_utensils'
-)
-
-public_api.add_resource(
-    api.recipes.RecipeIngredientListAPI,
-    '/recipes/<int:recipe_id>/ingredients',
-    endpoint='recipe_ingredients'
-)
+app.register_blueprint(api.utensils.blueprint, url_prefix='/utensils')
+app.register_blueprint(api.ingredients.blueprint, url_prefix='/ingredients')
+app.register_blueprint(api.recipes.blueprint, url_prefix='/recipes')
 

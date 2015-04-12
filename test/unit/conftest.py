@@ -1,10 +1,8 @@
 """Configuration and fixture for unit testing"""
 import imp
-import json
 import unittest.mock
 
 import ipdb
-import flask
 import peewee
 import pytest
 
@@ -36,16 +34,7 @@ def app():
     """Load flask in testing mode"""
     app_test = api.app
     app_test.config['TESTING'] = True
-
-    # pylint: disable=unused-variable
-    @api.public_api.representation('application/json')
-    def output_json(data, code, headers=None):
-        """Replace default json encoder to support Mock object"""
-        resp = flask.make_response(
-            json.dumps(data, cls=test.utils.MockEncoder), code
-        )
-        resp.headers.extend(headers or {})
-        return resp
+    app_test.json_encoder = test.utils.MockEncoder
 
     return app_test.test_client()
 

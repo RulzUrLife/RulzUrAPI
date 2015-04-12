@@ -1,6 +1,5 @@
 """API recipes entrypoints"""
-import flask_restful
-
+import flask
 import peewee
 
 import db.connector
@@ -9,6 +8,7 @@ import db.models as models
 import utils.helpers
 import utils.schemas as schemas
 
+blueprint = flask.Blueprint('recipes', __name__)
 
 def get_recipe(recipe_id):
     """Get a specific recipe or raise 404 if it does not exists"""
@@ -149,118 +149,105 @@ def update_recipe(recipe):
     return recipe
 
 
-# pylint: disable=too-few-public-methods
-class RecipeListAPI(flask_restful.Resource):
-    """/recipes/ endpoint"""
+@blueprint.route('/')
+def recipes_get():
+    """List all recipes"""
+    return {'recipes': list(models.Recipe.select().dicts())}
 
-    # pylint: disable=no-self-use
-    def get(self):
-        """List all recipes"""
-        return {'recipes': list(models.Recipe.select().dicts())}
 
-    @db.connector.database.transaction()
-    def post(self):
-        """Create a recipe"""
-        recipe = utils.helpers.raise_or_return(
-            utils.schemas.recipe_schema_post
+@blueprint.route('/', methods=['POST'])
+@db.connector.database.transaction()
+def recipes_post():
+    """Create a recipe"""
+    recipe = utils.helpers.raise_or_return(
+        utils.schemas.recipe_schema_post
+    )
+    count = (models.Recipe
+             .select()
+             .where(models.Recipe.name == recipe.get('name'))
+             .count())
+
+    if count:
+        raise utils.helpers.APIException('Recipe already exists.', 409)
+
+    # avoid race condition by locking tables
+    lock_table(models.Utensil)
+    lock_table(models.Ingredient)
+
+    ingredients = ingredients_parsing(recipe['ingredients'])
+    utensils = utensils_parsing(recipe['utensils'])
+    recipe = models.Recipe.create(**recipe)
+    recipe.ingredients = ingredients
+    recipe.utensils = utensils
+
+    recipe_utensils = [
+        {'recipe': recipe, 'utensil': utensil} for utensil in utensils
+    ]
+
+    models.RecipeUtensils.insert_many(recipe_utensils).execute()
+
+    for ingredient in ingredients:
+        ingredient['recipe'] = recipe
+    models.RecipeIngredients.insert_many(ingredients).execute()
+    return {
+        'recipe': utils.schemas.recipe_schema.dump(recipe).data
+    }, 201
+
+
+@blueprint.route('/', methods=['PUT'])
+@db.connector.database.transaction()
+def recipes_put():
+    """Update multiple recipes"""
+    # avoid race condition by locking tables
+
+    lock_table(models.Utensil)
+    lock_table(models.Ingredient)
+
+    data = utils.helpers.raise_or_return(utils.schemas.recipe_schema_list)
+    recipes = [update_recipe(recipe) for recipe in data['recipes']]
+    return utils.schemas.recipe_schema_list.dump({'recipes': recipes}).data
+
+
+@blueprint.route('/<int:recipe_id>/')
+def recipe_get(recipe_id):
+    """Provide the recipe for recipe_id"""
+    try:
+        recipe = next(select_recipes(models.Recipe.id == recipe_id))
+    except StopIteration:
+        raise utils.helpers.APIException('Recipe not found', 404)
+
+    recipe, _ = schemas.recipe_schema.dump(recipe)
+    return {'recipe': recipe}
+
+@blueprint.route('/<int:recipe_id>/ingredients/')
+def recipe_ingredients_get(recipe_id):
+    """List all the ingredients for recipe_id"""
+    get_recipe(recipe_id)
+
+    ingredients_query = (
+        models.RecipeIngredients
+        .select(
+            models.RecipeIngredients.quantity,
+            models.RecipeIngredients.measurement,
+            models.Ingredient
         )
-        count = (models.Recipe
-                 .select()
-                 .where(models.Recipe.name == recipe.get('name'))
-                 .count())
+        .join(models.Ingredient)
+        .where(models.RecipeIngredients.recipe == recipe_id)
+        .dicts())
 
-        if count:
-            raise utils.helpers.APIException('Recipe already exists.', 409)
+    return {'ingredients': list(ingredients_query)}
 
-        # avoid race condition by locking tables
-        lock_table(models.Utensil)
-        lock_table(models.Ingredient)
+@blueprint.route('/<int:recipe_id>/utensils/')
+def recipe_utensils_get(recipe_id):
+    """List all the utensils for recipe_id"""
+    get_recipe(recipe_id)
 
-        ingredients = ingredients_parsing(recipe['ingredients'])
-        utensils = utensils_parsing(recipe['utensils'])
-        recipe = models.Recipe.create(**recipe)
-        recipe.ingredients = ingredients
-        recipe.utensils = utensils
+    utensils_query = (
+        models.Utensil
+        .select()
+        .join(models.RecipeUtensils)
+        .where(models.RecipeUtensils.recipe == recipe_id)
+        .dicts())
 
-        recipe_utensils = [
-            {'recipe': recipe, 'utensil': utensil} for utensil in utensils
-        ]
-
-        models.RecipeUtensils.insert_many(recipe_utensils).execute()
-
-        for ingredient in ingredients:
-            ingredient['recipe'] = recipe
-        models.RecipeIngredients.insert_many(ingredients).execute()
-        return {
-            'recipe': utils.schemas.recipe_schema.dump(recipe).data
-        }, 201
-
-
-    @db.connector.database.transaction()
-    def put(self):
-        """Update multiple recipes"""
-        # avoid race condition by locking tables
-
-        lock_table(models.Utensil)
-        lock_table(models.Ingredient)
-
-        data = utils.helpers.raise_or_return(utils.schemas.recipe_schema_list)
-        recipes = [update_recipe(recipe) for recipe in data['recipes']]
-        return utils.schemas.recipe_schema_list.dump({'recipes': recipes}).data
-
-
-# pylint: disable=too-few-public-methods
-class RecipeAPI(flask_restful.Resource):
-    """/recipes/{recipe_id}/ endpoint"""
-
-    # pylint: disable=no-self-use
-    def get(self, recipe_id):
-        """Provide the recipe for recipe_id"""
-        try:
-            recipe = next(select_recipes(models.Recipe.id == recipe_id))
-        except StopIteration:
-            raise utils.helpers.APIException('Recipe not found', 404)
-
-        recipe, _ = schemas.recipe_schema.dump(recipe)
-        return {'recipe': recipe}
-
-# pylint: disable=too-few-public-methods
-class RecipeIngredientListAPI(flask_restful.Resource):
-    """/recipes/{recipe_id}/ingredients endpoint"""
-
-    # pylint: disable=no-self-use
-    def get(self, recipe_id):
-        """List all the ingredients for recipe_id"""
-        get_recipe(recipe_id)
-
-        ingredients_query = (
-            models.RecipeIngredients
-            .select(
-                models.RecipeIngredients.quantity,
-                models.RecipeIngredients.measurement,
-                models.Ingredient
-            )
-            .join(models.Ingredient)
-            .where(models.RecipeIngredients.recipe == recipe_id)
-            .dicts())
-
-        return {'ingredients': list(ingredients_query)}
-
-# pylint: disable=too-few-public-methods
-class RecipeUtensilListAPI(flask_restful.Resource):
-    """/recipes/{recipe_id}/utensils endpoint"""
-
-    # pylint: disable=no-self-use
-    def get(self, recipe_id):
-        """List all the utensils for recipe_id"""
-        get_recipe(recipe_id)
-
-        utensils_query = (
-            models.Utensil
-            .select()
-            .join(models.RecipeUtensils)
-            .where(models.RecipeUtensils.recipe == recipe_id)
-            .dicts())
-
-        return {'utensils': list(utensils_query)}
+    return {'utensils': list(utensils_query)}
 

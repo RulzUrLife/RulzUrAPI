@@ -123,8 +123,7 @@ def test_ingredients_post_409(app, monkeypatch, ingredient_no_id):
 
     ingredients_create_page = utils.send(app.post, '/ingredients/',
                                          ingredient_no_id)
-    error_msg = {'message': 'Ingredient already exists'}
-
+    error_msg = {'message': 'Ingredient already exists', 'status_code': 409}
     assert ingredients_create_page.status_code == 409
     assert utils.load(ingredients_create_page) == error_msg
 
@@ -186,7 +185,7 @@ def test_ingredient_get(app, monkeypatch, ingredient):
     monkeypatch.setattr('utils.schemas.ingredient_schema.dump',
                         mock_ingredient_dump)
 
-    ingredient_page = utils.send(app.get, '/ingredients/1')
+    ingredient_page = utils.send(app.get, '/ingredients/1/')
     ingredient_dump_calls = [mock.call(sentinel_ingredient)]
     assert ingredient_page.status_code == 200
     assert utils.load(ingredient_page) == {'ingredient': ingredient}
@@ -207,7 +206,7 @@ def test_ingredient_put(app, monkeypatch, ingredient):
                         mock_update_ingredient)
 
     schema = schemas.ingredient_schema_put
-    ingredient_put_page = utils.send(app.put, '/ingredients/2', ingredient)
+    ingredient_put_page = utils.send(app.put, '/ingredients/2/', ingredient)
     update_ingredient_calls = [mock.call(ingredient_copy)]
 
     assert ingredient_put_page.status_code == 200
@@ -220,25 +219,25 @@ def test_ingredient_get_recipes(app, monkeypatch):
     """Test /ingredients/<id>/recipes"""
 
     recipe = {str(mock.sentinel.recipe_key): str(mock.sentinel.recipe)}
-    mock_recipe = mock.MagicMock(wraps=recipe)
+    recipes = {'recipes': [recipe]}
+    mock_recipes = mock.MagicMock(wraps=recipes, spec=dict)
 
     mock_get_ingredient = mock.Mock()
     mock_select_recipes = mock.Mock(return_value=[mock.sentinel.recipe])
-    mock_recipe_dump = mock.Mock(return_value=(mock_recipe, None))
+    mock_recipe_dump = mock.Mock(return_value=(mock_recipes, None))
 
     monkeypatch.setattr('api.ingredients.get_ingredient', mock_get_ingredient)
     monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
     monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
                         mock_recipe_dump)
 
-    ingredient_recipes_page = utils.send(app.get, '/ingredients/1/recipes')
+    ingredient_recipes_page = utils.send(app.get, '/ingredients/1/recipes/')
     select_recipes_calls = [mock.call(
         peewee.Expression(models.RecipeIngredients.ingredient, peewee.OP.EQ, 1)
     )]
 
     assert ingredient_recipes_page.status_code == 200
-
-    assert utils.load(ingredient_recipes_page) == recipe
+    assert utils.load(ingredient_recipes_page) == recipes
 
     assert mock_get_ingredient.call_args_list == [mock.call(1)]
     assert mock_select_recipes.call_args_list == select_recipes_calls

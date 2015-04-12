@@ -121,7 +121,7 @@ def test_utensils_post_409(app, monkeypatch):
     monkeypatch.setattr('db.models.Utensil.create', mock_utensil_create)
 
     utensils_create_page = utils.send(app.post, '/utensils/', {})
-    error_msg = {'message': 'Utensil already exists'}
+    error_msg = {'message': 'Utensil already exists', 'status_code': 409}
 
     assert utensils_create_page.status_code == 409
     assert utils.load(utensils_create_page) == error_msg
@@ -174,7 +174,7 @@ def test_utensil_get(app, monkeypatch):
     monkeypatch.setattr('api.utensils.get_utensil', mock_get_utensil)
     monkeypatch.setattr('utils.schemas.utensil_schema.dump', mock_utensil_dump)
 
-    utensil_page = utils.send(app.get, '/utensils/1')
+    utensil_page = utils.send(app.get, '/utensils/1/')
 
     assert utensil_page.status_code == 200
     assert utils.load(utensil_page) == {'utensil': str(sentinel_utensil)}
@@ -193,7 +193,7 @@ def test_utensil_put(app, monkeypatch):
     monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
 
     schema = schemas.utensil_schema_put
-    utensil_put_page = utils.send(app.put, '/utensils/2', utensil)
+    utensil_put_page = utils.send(app.put, '/utensils/2/', utensil)
 
     assert utensil_put_page.status_code == 200
     assert utils.load(utensil_put_page) == {'utensil': utensil}
@@ -203,17 +203,21 @@ def test_utensil_put(app, monkeypatch):
 
 def test_utensil_get_recipes(app, monkeypatch):
     """Test /utensils/<id>/recipes"""
-    recipes = [str(mock.sentinel.recipe)]
+
+    recipe = {str(mock.sentinel.recipe_key): str(mock.sentinel.recipe)}
+    recipes = {'recipes': [recipe]}
+    mock_recipes = mock.MagicMock(wraps=recipes, spec=dict)
+
     mock_get_utensil = mock.Mock()
-    mock_select_recipes = mock.Mock(return_value=recipes)
-    mock_recipe_dump = mock.Mock(return_value=(recipes, None))
+    mock_select_recipes = mock.Mock(return_value=[mock.sentinel.recipe])
+    mock_recipe_dump = mock.Mock(return_value=(mock_recipes, None))
 
     monkeypatch.setattr('api.utensils.get_utensil', mock_get_utensil)
     monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
     monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
                         mock_recipe_dump)
 
-    utensil_recipes_page = utils.send(app.get, '/utensils/1/recipes')
+    utensil_recipes_page = utils.send(app.get, '/utensils/1/recipes/')
 
     select_recipes_calls = [mock.call(
         peewee.Expression(models.RecipeUtensils.utensil, peewee.OP.EQ, 1)
@@ -224,5 +228,7 @@ def test_utensil_get_recipes(app, monkeypatch):
 
     assert mock_get_utensil.call_args_list == [mock.call(1)]
     assert mock_select_recipes.call_args_list == select_recipes_calls
-    assert mock_recipe_dump.call_args_list == [mock.call({'recipes': recipes})]
+    assert mock_recipe_dump.call_args_list == [mock.call({
+        'recipes': [mock.sentinel.recipe]
+    })]
 
