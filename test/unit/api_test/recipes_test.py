@@ -1,5 +1,5 @@
 """API endpoints testing"""
-# pylint: disable=no-self-use, too-many-locals, too-many-statements, no-member
+# pylint: disable=no-self-use, too-many-locals, too-many-statements
 import unittest.mock as mock
 
 import peewee
@@ -31,7 +31,6 @@ class TestUtilityFunctions(object):
             mock_utensils_parsing=mock.Mock()
         )
 
-        # pylint: disable=no-member
         mocks = type('Mocks', (object,), mocks)
 
         # monkeypatch all the things o/

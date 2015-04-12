@@ -16,7 +16,6 @@ class BaseModel(peewee.Model):
     """Define the common model configuration"""
 
     @classmethod
-    # pylint: disable=no-member
     def update(cls, **update):
         fdict = dict((cls._meta.fields[f], v) for f, v in update.items())
         return db.orm.UpdateQuery(cls, update=fdict)

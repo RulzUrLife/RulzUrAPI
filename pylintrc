@@ -61,7 +61,7 @@ confidence=
 # locally-disabled: disable warnings in case of local exception in pylint
 # invalid-name:     disable warnings for name which does not match
 
-disable=star-args, locally-disabled, invalid-name
+disable=star-args, locally-disabled, invalid-name, no-member
 
 [REPORTS]
 

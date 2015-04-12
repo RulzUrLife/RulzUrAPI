@@ -1,5 +1,5 @@
 """API utensils endpoint testing"""
-# pylint: disable=no-self-use, too-many-locals, too-many-statements, no-member
+# pylint: disable=no-self-use, too-many-locals, too-many-statements
 import unittest.mock as mock
 
 import peewee

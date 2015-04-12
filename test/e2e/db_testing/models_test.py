@@ -49,7 +49,6 @@ def test_model():
     assert recipe.ingredients.count() == 2
     ingredients = [ingredient_1, ingredient_2]
 
-    # pylint: disable=no-member
     for recipe_ingredient in recipe.ingredients.select():
         ingredient = recipe_ingredient.ingredient
 
@@ -70,7 +69,6 @@ def test_model():
     assert recipe.utensils.count() == 2
     utensils = [utensil_1, utensil_2]
 
-    # pylint: disable=no-member
     for recipe_utensil in recipe.utensils.select():
         utensil = recipe_utensil.utensil
 
