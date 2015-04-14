@@ -1,6 +1,7 @@
 """Configuration and fixture for unit testing"""
 import contextlib
 import imp
+import json
 import unittest.mock
 
 import ipdb
@@ -31,11 +32,30 @@ unittest.mock.MagicMock = test.utils.MagicMock
 @pytest.fixture(autouse=True)
 def app():
     """Load flask in testing mode"""
+
+    def client_method_decorator(func):
+        """Helper to send data from test to the application"""
+        def wrapper(*args, **kwargs):
+            """Dump the data dict into json and set content_type"""
+            if not kwargs.get('content_type'):
+                kwargs['content_type'] = 'application/json'
+            data = kwargs.get('data')
+            if data:
+                kwargs['data'] = json.dumps(data, cls=test.utils.MockEncoder)
+
+            return func(*args, **kwargs)
+
+        return wrapper
     app_test = api.app
     app_test.config['TESTING'] = True
     app_test.json_encoder = test.utils.MockEncoder
 
-    return app_test.test_client()
+    client = app_test.test_client()
+    client.get = client_method_decorator(client.get)
+    client.put = client_method_decorator(client.put)
+    client.post = client_method_decorator(client.post)
+
+    return client
 
 def remove_id(elt):
     """Remove the "id" field of a dict like object"""

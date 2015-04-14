@@ -80,7 +80,7 @@ def test_utensils_list(app, monkeypatch, utensils):
     dicts.return_value = utensils['utensils']
 
     monkeypatch.setattr('db.models.Utensil.select', mock_utensil_select)
-    utensils_page = utils.send(app.get, '/utensils/')
+    utensils_page = app.get('/utensils/')
 
     assert utensils_page.status_code == 200
     assert mock_utensil_select.call_args_list == [mock.call()]
@@ -104,7 +104,7 @@ def test_utensils_post(app, monkeypatch):
                         mock_utensil_schema_dump)
 
     schema = schemas.utensil_schema_post
-    utensils_create_page = utils.send(app.post, '/utensils/', mock_utensil)
+    utensils_create_page = app.post('/utensils/', data=mock_utensil)
 
     assert utensils_create_page.status_code == 201
     assert utils.load(utensils_create_page) == {'utensil': utensil}
@@ -120,7 +120,7 @@ def test_utensils_post_409(app, monkeypatch):
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('db.models.Utensil.create', mock_utensil_create)
 
-    utensils_create_page = utils.send(app.post, '/utensils/', {})
+    utensils_create_page = app.post('/utensils/', data={})
     error_msg = {'message': 'Utensil already exists', 'status_code': 409}
 
     assert utensils_create_page.status_code == 409
@@ -139,7 +139,7 @@ def test_utensils_put(app, monkeypatch):
     monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
 
     schema = schemas.utensil_schema_list
-    utensils_update_page = utils.send(app.put, '/utensils/', utensils)
+    utensils_update_page = app.put('/utensils/', data=utensils)
 
     assert utensils_update_page.status_code == 200
     assert utils.load(utensils_update_page) == utensils
@@ -157,7 +157,7 @@ def test_utensils_put_with_exception(app, monkeypatch):
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
 
-    utensils_update_page = utils.send(app.put, '/utensils/', utensils)
+    utensils_update_page = app.put('/utensils/', data=utensils)
 
     update_calls = [mock.call(utensil)]
     assert utensils_update_page.status_code == 200
@@ -174,7 +174,7 @@ def test_utensil_get(app, monkeypatch):
     monkeypatch.setattr('api.utensils.get_utensil', mock_get_utensil)
     monkeypatch.setattr('utils.schemas.utensil_schema.dump', mock_utensil_dump)
 
-    utensil_page = utils.send(app.get, '/utensils/1/')
+    utensil_page = app.get('/utensils/1/')
 
     assert utensil_page.status_code == 200
     assert utils.load(utensil_page) == {'utensil': str(sentinel_utensil)}
@@ -193,7 +193,7 @@ def test_utensil_put(app, monkeypatch):
     monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
 
     schema = schemas.utensil_schema_put
-    utensil_put_page = utils.send(app.put, '/utensils/2/', utensil)
+    utensil_put_page = app.put('/utensils/2/', data=utensil)
 
     assert utensil_put_page.status_code == 200
     assert utils.load(utensil_put_page) == {'utensil': utensil}
@@ -217,7 +217,7 @@ def test_utensil_get_recipes(app, monkeypatch):
     monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
                         mock_recipe_dump)
 
-    utensil_recipes_page = utils.send(app.get, '/utensils/1/recipes/')
+    utensil_recipes_page = app.get('/utensils/1/recipes/')
 
     select_recipes_calls = [mock.call(
         peewee.Expression(models.RecipeUtensils.utensil, peewee.OP.EQ, 1)

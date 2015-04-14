@@ -97,11 +97,3 @@ class MockEncoder(json.JSONEncoder):
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
 
-def send(method, url, data=None):
-    """Helper to send data from test to the application"""
-    kwargs = {
-        'content_type': 'application/json',
-        'data': json.dumps(data, cls=MockEncoder) if data is not None else None
-    }
-    return method(url, **kwargs)
-

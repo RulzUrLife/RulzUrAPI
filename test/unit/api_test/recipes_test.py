@@ -421,7 +421,7 @@ class TestRecipeAPI(object):
         dicts.return_value = mock_recipes
 
         monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
-        recipes_page = utils.send(app.get, '/recipes/')
+        recipes_page = app.get('/recipes/')
 
         assert recipes_page.status_code == 200
         assert mock_recipe_select.call_args_list == [mock.call()]
@@ -479,7 +479,7 @@ class TestRecipeAPI(object):
         recipe_count.return_value = 0
 
 
-        recipes_create_page = utils.send(app.post, '/recipes/', recipe)
+        recipes_create_page = app.post('/recipes/', data=recipe)
 
         lock_table_calls = [mock.call(models.Utensil),
                             mock.call(models.Ingredient)]
@@ -523,7 +523,7 @@ class TestRecipeAPI(object):
                             mock_raise_or_return)
         monkeypatch.setattr('db.models.Recipe.select', mock_recipe_select)
 
-        recipes_create_page = utils.send(app.post, '/recipes/', {})
+        recipes_create_page = app.post('/recipes/', data={})
         error_msg = {'message': 'Recipe already exists.', 'status_code': 409}
 
         assert recipes_create_page.status_code == 409
@@ -555,7 +555,7 @@ class TestRecipeAPI(object):
         schema_dump_calls = [mock.call({'recipes': [mock.sentinel.recipe]})]
         update_calls = [mock.call(recipe)]
 
-        recipes_update_page = utils.send(app.put, '/recipes/', {})
+        recipes_update_page = app.put('/recipes/', data={})
 
         assert recipes_update_page.status_code == 200
         assert utils.load(recipes_update_page) == recipes
@@ -576,7 +576,7 @@ class TestRecipeAPI(object):
         monkeypatch.setattr('utils.schemas.recipe_schema.dump',
                             mock_recipe_schema_dump)
 
-        recipe_get_page = utils.send(app.get, '/recipes/1/')
+        recipe_get_page = app.get('/recipes/1/')
 
         select_recipes_calls = [mock.call(
             peewee.Expression(models.Recipe.id, peewee.OP.EQ, 1)
@@ -595,7 +595,7 @@ class TestRecipeAPI(object):
 
         monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
 
-        recipe_get_page = utils.send(app.get, '/recipes/1/')
+        recipe_get_page = app.get('/recipes/1/')
 
         assert recipe_get_page.status_code == 404
         assert utils.load(recipe_get_page) == {'status_code': 404,
@@ -618,7 +618,7 @@ class TestRecipeAPI(object):
         ingrs_dicts = ingrs_where.return_value.dicts
         ingrs_dicts.return_value = ingrs
 
-        recipe_ingrs_page = utils.send(app.get, '/recipes/1/ingredients/')
+        recipe_ingrs_page = app.get('/recipes/1/ingredients/')
 
         ingrs_select_calls = [mock.call(models.RecipeIngredients.quantity,
                                         models.RecipeIngredients.measurement,
@@ -654,7 +654,7 @@ class TestRecipeAPI(object):
         utensils_dicts = utensils_where.return_value.dicts
         utensils_dicts.return_value = utensils
 
-        recipe_utensils_page = utils.send(app.get, '/recipes/1/utensils/')
+        recipe_utensils_page = app.get('/recipes/1/utensils/')
 
         utensils_select_calls = [mock.call()]
         utensils_join_calls = [mock.call(models.RecipeUtensils)]

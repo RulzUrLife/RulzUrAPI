@@ -82,7 +82,7 @@ def test_ingredients_list(app, monkeypatch, ingredients):
     dicts.return_value = ingredients['ingredients']
 
     monkeypatch.setattr('db.models.Ingredient.select', mock_ingredient_select)
-    ingredients_page = utils.send(app.get, '/ingredients/')
+    ingredients_page = app.get('/ingredients/')
 
     assert ingredients_page.status_code == 200
     assert mock_ingredient_select.call_args_list == [mock.call()]
@@ -104,8 +104,7 @@ def test_ingredients_post(app, monkeypatch, ingredient, ingredient_no_id):
     schema = schemas.ingredient_schema_post
     ingredient_create_calls = [mock.call(**ingredient_no_id)]
 
-    ingredients_create_page = utils.send(app.post, '/ingredients/',
-                                         ingredient_no_id)
+    ingredients_create_page = app.post('/ingredients/', data=ingredient_no_id)
 
     assert ingredients_create_page.status_code == 201
     assert utils.load(ingredients_create_page) == {'ingredient': ingredient}
@@ -121,8 +120,7 @@ def test_ingredients_post_409(app, monkeypatch, ingredient_no_id):
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('db.models.Ingredient.create', mock_ingredient_create)
 
-    ingredients_create_page = utils.send(app.post, '/ingredients/',
-                                         ingredient_no_id)
+    ingredients_create_page = app.post('/ingredients/', data=ingredient_no_id)
     error_msg = {'message': 'Ingredient already exists', 'status_code': 409}
     assert ingredients_create_page.status_code == 409
     assert utils.load(ingredients_create_page) == error_msg
@@ -141,7 +139,7 @@ def test_ingredients_put(app, monkeypatch, ingredients):
                         mock_update_ingredient)
 
     schema = schemas.ingredient_schema_list
-    ingredients_update_page = utils.send(app.put, '/ingredients/', ingredients)
+    ingredients_update_page = app.put('/ingredients/', data=ingredients)
 
     update_calls = [
         mock.call(ingredient) for ingredient in ingredients['ingredients']
@@ -164,8 +162,7 @@ def test_ingredients_put_with_exception(app, monkeypatch, ingredients):
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
     monkeypatch.setattr('api.ingredients.update_ingredient',
                         mock_update_ingredient)
-
-    ingredients_update_page = utils.send(app.put, '/ingredients/', ingredients)
+    ingredients_update_page = app.put('/ingredients/', data=ingredients)
 
     update_calls = [
         mock.call(ingredient) for ingredient in ingredients['ingredients']
@@ -185,7 +182,7 @@ def test_ingredient_get(app, monkeypatch, ingredient):
     monkeypatch.setattr('utils.schemas.ingredient_schema.dump',
                         mock_ingredient_dump)
 
-    ingredient_page = utils.send(app.get, '/ingredients/1/')
+    ingredient_page = app.get('/ingredients/1/')
     ingredient_dump_calls = [mock.call(sentinel_ingredient)]
     assert ingredient_page.status_code == 200
     assert utils.load(ingredient_page) == {'ingredient': ingredient}
@@ -206,7 +203,7 @@ def test_ingredient_put(app, monkeypatch, ingredient):
                         mock_update_ingredient)
 
     schema = schemas.ingredient_schema_put
-    ingredient_put_page = utils.send(app.put, '/ingredients/2/', ingredient)
+    ingredient_put_page = app.put('/ingredients/2/', data=ingredient)
     update_ingredient_calls = [mock.call(ingredient_copy)]
 
     assert ingredient_put_page.status_code == 200
@@ -231,7 +228,7 @@ def test_ingredient_get_recipes(app, monkeypatch):
     monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
                         mock_recipe_dump)
 
-    ingredient_recipes_page = utils.send(app.get, '/ingredients/1/recipes/')
+    ingredient_recipes_page = app.get('/ingredients/1/recipes/')
     select_recipes_calls = [mock.call(
         peewee.Expression(models.RecipeIngredients.ingredient, peewee.OP.EQ, 1)
     )]
