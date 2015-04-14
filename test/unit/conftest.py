@@ -1,4 +1,5 @@
 """Configuration and fixture for unit testing"""
+import contextlib
 import imp
 import unittest.mock
 
@@ -10,19 +11,17 @@ import api
 import db.connector
 import test.utils
 
+@pytest.fixture(autouse=True, scope='session')
 def mock_transaction():
     """Replace the transaction decorator from peewee to a noop one"""
-    def noop_decorator():
-        """noop decorator (do nothing)"""
-        return lambda x: x
 
+    noop_decorator = contextlib.contextmanager(lambda: (yield))
     db.connector.database.transaction = noop_decorator
     imp.reload(api.utensils)
     imp.reload(api.ingredients)
     imp.reload(api.recipes)
     imp.reload(api)
 
-mock_transaction()
 
 # Override mock.call to be compliant with peewee __eq__ override
 unittest.mock._Call = test.utils._Call # pylint: disable=protected-access
@@ -53,6 +52,16 @@ def debug():
         ipdb.set_trace()
 
     return debug_fn
+
+
+@pytest.yield_fixture
+# pylint: disable=redefined-outer-name
+def request_context(app):
+    """Provide a Flask request context for testing purpose"""
+
+    with app.application.test_request_context() as req_context:
+        yield req_context
+
 
 @pytest.fixture
 def utensil():

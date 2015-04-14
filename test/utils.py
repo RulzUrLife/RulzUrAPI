@@ -58,7 +58,6 @@ class MagicMock(mock.MagicMock):
     def __init__(self, *args, **kwargs):
         super(MagicMock, self).__init__(*args, **kwargs)
         wraps = kwargs.get('wraps')
-
         if wraps is None:
             return
 

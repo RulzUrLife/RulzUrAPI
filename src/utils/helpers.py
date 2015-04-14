@@ -47,7 +47,6 @@ def unpack(value):
     """Return a three tuple of data, code, and headers"""
     if not isinstance(value, tuple):
         return value, 200, {}
-
     try:
         data, code, headers = value
         return data, code, headers
@@ -62,3 +61,28 @@ def unpack(value):
 
     return value, 200, {}
 
+
+def template(mapping):
+    """Template decorator
+
+    This decorator is used for generating template according to 'Accept'
+    header.
+
+    If the Accept header match the mapping key it will render the template
+    provided as a value. If nothing match everything is returned as is.
+
+    """
+    def decorator(func):
+        """Take the function to decorate and return a wrapper"""
+
+        def wrapper(*args):
+            """Wrap the function call, render the template if needed"""
+            data, code, headers = unpack(func(*args))
+            tpl = mapping.get(flask.request.accept_mimetypes.best)
+
+            if tpl:
+                data = flask.render_template(tpl, **data)
+            return data, code, headers
+
+        return wrapper
+    return decorator

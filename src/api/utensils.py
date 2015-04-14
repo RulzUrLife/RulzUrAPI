@@ -9,7 +9,8 @@ import utils.schemas as schemas
 
 import peewee
 
-blueprint = flask.Blueprint('utensils', __name__)
+blueprint = flask.Blueprint('utensils', __name__,
+                            template_folder='templates')
 
 def get_utensil(utensil_id):
     """Get a specific utensil or raise 404 if it does not exists"""
@@ -35,6 +36,7 @@ def update_utensil(utensil):
 
 
 @blueprint.route('/')
+@utils.helpers.template({'text/html': 'utensils.html'})
 def utensils_get():
     """List all utensils"""
     return {'utensils': list(db.models.Utensil.select().dicts())}

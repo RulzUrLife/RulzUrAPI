@@ -18,27 +18,25 @@ def test_api_exception():
     api_exception = helpers.APIException('Error Message', 500, {'foo': 'bar'})
     assert api_exception.args == ('Error Message', 500, {'foo': 'bar'})
 
-
-def test_jsonify_api_exception(app):
+@pytest.mark.usefixtures('request_context')
+def test_jsonify_api_exception():
     """Test the jsonify result of APIException"""
     error_msg = {'message': 'Error Message', 'status_code': 400}
     api_exception = helpers.APIException('Error Message')
 
-    with app.application.test_request_context():
-        response, status_code = helpers.jsonify_api_exception(api_exception)
-        assert status_code == 400
-        assert utils.load(response) == error_msg
+    response, status_code = helpers.jsonify_api_exception(api_exception)
+    assert status_code == 400
+    assert utils.load(response) == error_msg
 
     error_msg = {'message': 'Error Message', 'status_code': 500, 'foo': 'bar'}
     api_exception = helpers.APIException('Error Message', 500, {'foo': 'bar'})
 
-    with app.application.test_request_context():
-        response, status_code = helpers.jsonify_api_exception(api_exception)
-        assert status_code == 500
-        assert utils.load(response) == error_msg
+    response, status_code = helpers.jsonify_api_exception(api_exception)
+    assert status_code == 500
+    assert utils.load(response) == error_msg
 
 
-def test_raise_or_return(app, monkeypatch):
+def test_raise_or_return(monkeypatch):
     """Test the raise_or_return function without error"""
 
     mock_schema_load = mock.Mock(return_value=(mock.sentinel.rv, None))
@@ -46,24 +44,23 @@ def test_raise_or_return(app, monkeypatch):
     mock_flask_request = mock.Mock(json=mock.sentinel.request_json)
 
     schema_load_calls = [mock.call(mock.sentinel.request_json)]
-    with app.application.test_request_context():
-        monkeypatch.setattr('flask.request', mock_flask_request)
-        rv = helpers.raise_or_return(mock_schema)
+    monkeypatch.setattr('flask.request', mock_flask_request)
+    rv = helpers.raise_or_return(mock_schema)
 
-        assert mock_schema_load.call_args_list == schema_load_calls
-        assert rv == mock.sentinel.rv
+    assert mock_schema_load.call_args_list == schema_load_calls
+    assert rv == mock.sentinel.rv
 
 
-def test_raise_or_return_error(app):
+@pytest.mark.usefixtures('request_context')
+def test_raise_or_return_error():
     """Test the raise_or_return function with error"""
 
     mock_schema_load = mock.Mock(side_effect=AttributeError)
     mock_schema = mock.Mock(load=mock_schema_load)
     api_exc = ('Request malformed', 400, {'errors': 'JSON might be incorrect'})
 
-    with app.application.test_request_context():
-        with pytest.raises(helpers.APIException) as excinfo:
-            helpers.raise_or_return(mock_schema)
+    with pytest.raises(helpers.APIException) as excinfo:
+        helpers.raise_or_return(mock_schema)
 
     assert excinfo.value.args == api_exc
 
@@ -71,9 +68,8 @@ def test_raise_or_return_error(app):
     mock_schema = mock.Mock(load=mock_schema_load)
     api_exc = ('Request malformed', 400, {'errors': mock.sentinel.errors})
 
-    with app.application.test_request_context():
-        with pytest.raises(helpers.APIException) as excinfo:
-            helpers.raise_or_return(mock_schema)
+    with pytest.raises(helpers.APIException) as excinfo:
+        helpers.raise_or_return(mock_schema)
 
     assert excinfo.value.args == api_exc
 
@@ -100,4 +96,84 @@ def test_model_entity(monkeypatch):
     assert mock_model_as_entity.call_args_list == [mock.call()]
     assert mock_parse_entity.call_args_list == parse_entity_calls
     assert me == mock.sentinel.model_entity
+
+
+def test_unpack():
+    """Test the unpack function
+
+    Here are the return value possibilities:
+
+    data               : must return data, 200, {}
+    data, code         : must return data, code, {}
+    data, code, headers: must return data, code, headers
+
+    """
+    rv = helpers.unpack(mock.sentinel.data)
+    assert rv == (mock.sentinel.data, 200, {})
+
+    rv = helpers.unpack((mock.sentinel.data,))
+    assert rv == ((mock.sentinel.data,), 200, {})
+
+    rv = helpers.unpack((mock.sentinel.data, mock.sentinel.code))
+    assert rv == (mock.sentinel.data, mock.sentinel.code, {})
+
+    rv = helpers.unpack(
+        (mock.sentinel.data, mock.sentinel.code, mock.sentinel.headers)
+    )
+    assert rv == (mock.sentinel.data, mock.sentinel.code,
+                  mock.sentinel.headers)
+
+
+def test_template(monkeypatch):
+    """Test the template decorator
+
+    Posibilities are:
+
+    render a template according to the header, if the template exists
+    return a tuple otherwise
+    """
+    data = {str(mock.sentinel.key): mock.sentinel.value}
+    mapping = {'html/text': mock.sentinel.template}
+
+    mock_data = mock.MagicMock(wraps=data)
+    mock_mapping = mock.MagicMock(wraps=mapping)
+
+    unpack_rv = mock_data, mock.sentinel.code, mock.sentinel.headers
+
+    mock_req = mock.Mock(accept_mimetypes=mock.Mock(best='html/text'))
+    mock_render_template = mock.Mock()
+    mock_unpack = mock.Mock(return_value=unpack_rv)
+
+    mock_render_template.return_value = mock.sentinel.template_rendered
+
+    monkeypatch.setattr('flask.request', mock_req)
+    monkeypatch.setattr('flask.render_template', mock_render_template)
+    monkeypatch.setattr('utils.helpers.unpack', mock_unpack)
+
+    decorator = helpers.template(mock_mapping)
+
+    func = decorator(lambda: mock.sentinel.rv)
+    rv = func()
+
+    render_template_args = [mock.call(mock.sentinel.template, **data)]
+
+    assert rv == (mock.sentinel.template_rendered, mock.sentinel.code,
+                  mock.sentinel.headers)
+    assert mock_unpack.call_args_list == [mock.call(mock.sentinel.rv)]
+    assert mock_mapping.get.call_args_list == [mock.call('html/text')]
+    assert mock_render_template.call_args_list == render_template_args
+
+    mock_mapping = mock.MagicMock(wraps={})
+    mock_render_template.reset_mock()
+    mock_unpack.reset_mock()
+
+    decorator = helpers.template(mock_mapping)
+    func = decorator(lambda: mock.sentinel.rv)
+
+    rv = func()
+
+    assert rv == unpack_rv
+    assert mock_unpack.call_args_list == [mock.call(mock.sentinel.rv)]
+    assert mock_mapping.get.call_args_list == [mock.call('html/text')]
+    assert mock_render_template.call_args_list == []
 
