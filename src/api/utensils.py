@@ -9,8 +9,7 @@ import utils.schemas as schemas
 
 import peewee
 
-blueprint = flask.Blueprint('utensils', __name__,
-                            template_folder='templates')
+blueprint = flask.Blueprint('utensils', __name__)
 
 def get_utensil(utensil_id):
     """Get a specific utensil or raise 404 if it does not exists"""

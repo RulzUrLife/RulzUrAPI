@@ -34,6 +34,12 @@ app.register_error_handler(
     utils.helpers.APIException, utils.helpers.jsonify_api_exception
 )
 
+# Just map the index
+@app.route('/')
+def index():
+    """Display the index page"""
+    return flask.render_template('index.html')
+
 app.register_blueprint(api.utensils.blueprint, url_prefix='/utensils')
 app.register_blueprint(api.ingredients.blueprint, url_prefix='/ingredients')
 app.register_blueprint(api.recipes.blueprint, url_prefix='/recipes')
