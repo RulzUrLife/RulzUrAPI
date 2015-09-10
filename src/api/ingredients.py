@@ -28,8 +28,7 @@ def update_ingredient(ingredient):
                 .update(**ingredient)
                 .where(models.Ingredient.id == ingredient_id)
                 .returning()
-                .dicts()
-                .execute())
+                .dicts())
     except peewee.DoesNotExist:
         raise utils.helpers.APIException('Ingredient not found', 404)
 

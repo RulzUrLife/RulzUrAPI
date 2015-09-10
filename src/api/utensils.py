@@ -28,8 +28,7 @@ def update_utensil(utensil):
                 .update(**utensil)
                 .where(db.models.Utensil.id == utensil_id)
                 .returning()
-                .dicts()
-                .execute())
+                .dicts())
     except peewee.DoesNotExist:
         raise utils.helpers.APIException('Utensil not found', 404)
 

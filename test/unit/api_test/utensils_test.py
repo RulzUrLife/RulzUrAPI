@@ -47,8 +47,7 @@ def test_update_utensil(monkeypatch, utensil):
     where = mock_utensil_update.return_value.where
     returning = where.return_value.returning
     dicts = returning.return_value.dicts
-    execute = dicts.return_value.execute
-    execute.return_value = mock.sentinel.utensil
+    dicts.return_value = mock.sentinel.utensil
 
     monkeypatch.setattr('db.models.Utensil.update', mock_utensil_update)
     returned_utensil = api.utensils.update_utensil(utensil)
@@ -58,7 +57,6 @@ def test_update_utensil(monkeypatch, utensil):
     assert where.call_args_list == [mock.call(where_exp)]
     assert returning.call_args_list == [mock.call()]
     assert dicts.call_args_list == [mock.call()]
-    assert execute.call_args_list == [mock.call()]
 
 
 def test_update_utensil_404(monkeypatch, utensil):

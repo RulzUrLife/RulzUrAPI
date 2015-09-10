@@ -49,8 +49,7 @@ def test_update_ingredient(monkeypatch, ingredient):
     where = mock_ingredient_update.return_value.where
     returning = where.return_value.returning
     dicts = returning.return_value.dicts
-    execute = dicts.return_value.execute
-    execute.return_value = mock.sentinel.ingredient
+    dicts.return_value = mock.sentinel.ingredient
 
     monkeypatch.setattr('db.models.Ingredient.update', mock_ingredient_update)
     returned_ingredient = api.ingredients.update_ingredient(ingredient)
@@ -60,7 +59,6 @@ def test_update_ingredient(monkeypatch, ingredient):
     assert where.call_args_list == [mock.call(where_exp)]
     assert returning.call_args_list == [mock.call()]
     assert dicts.call_args_list == [mock.call()]
-    assert execute.call_args_list == [mock.call()]
 
 
 def test_update_ingredient_404(monkeypatch, ingredient):

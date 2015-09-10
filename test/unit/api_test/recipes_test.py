@@ -284,8 +284,7 @@ class TestUtilityFunctions(object):
 
         update_where = mocks.mock_recipe_update.return_value.where
         update_returning = update_where.return_value.returning
-        update_execute = update_returning.return_value.execute
-        update_execute.return_value = mock_db_recipe
+        update_returning.return_value = mock_db_recipe
 
         mocks.mock_ingrs_parsing.return_value = [mock_ingr]
         mocks.mock_utensils_parsing.return_value = [mock.sentinel.utensil]
@@ -306,7 +305,6 @@ class TestUtilityFunctions(object):
         assert mocks.mock_recipe_update.call_args_list == [mock.call(**recipe)]
         assert update_where.call_args_list == [mock.call(where_exp)]
         assert update_returning.call_args_list == [mock.call()]
-        assert update_execute.call_args_list == [mock.call()]
 
         # checks the replacement of old ingredients
         mock_ingrs_delete = mocks.mock_ingrs_delete
@@ -362,8 +360,7 @@ class TestUtilityFunctions(object):
 
         (mocks.mock_recipe_update.return_value
          .where.return_value
-         .returning.return_value
-         .execute.return_value) = mock_db_recipe
+         .returning.return_value) = mock_db_recipe
 
         ingrs_select = mocks.mock_ingrs_select
         ingrs_select_join = ingrs_select.return_value.join

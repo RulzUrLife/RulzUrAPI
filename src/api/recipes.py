@@ -114,8 +114,7 @@ def update_recipe(recipe):
     recipe = (models.Recipe
               .update(**recipe)
               .where(models.Recipe.id == recipe_id)
-              .returning()
-              .execute())
+              .returning())
     if ingredients is not None:
         delete_old_entries(models.RecipeIngredients, recipe_id)
         ingredients = ingredients_parsing(ingredients)

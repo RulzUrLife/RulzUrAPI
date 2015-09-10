@@ -5,7 +5,6 @@ Load the password from a file if possible
 Set the database variable for deferred connection
 Set the schema for database models
 """
-import os
 import peewee
 import db.orm
 
@@ -20,8 +19,8 @@ except Exception: # pylint: disable=broad-except
 config = {
     'database': 'rulzurdb',
     'user': 'rulzurdb',
-    'host': os.environ.get('RULZURDB_PORT_5432_TCP_ADDR'),
-    'port': os.environ.get('RULZURDB_PORT_5432_TCP_PORT'),
+    'host': 'rulzurdb',
+    'port': 5432,
     'password': password.rstrip('\n'),
 }
 

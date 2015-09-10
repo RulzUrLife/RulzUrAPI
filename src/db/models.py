@@ -16,11 +16,6 @@ class BaseModel(peewee.Model):
     """Define the common model configuration"""
 
     @classmethod
-    def update(cls, **update):
-        fdict = dict((cls._meta.fields[f], v) for f, v in update.items())
-        return db.orm.UpdateQuery(cls, update=fdict)
-
-    @classmethod
     # pylint: disable=arguments-differ
     def insert_many(cls, rows, unique_field=None):
         """Insert many values if they not exists

@@ -17,6 +17,7 @@ def mock_transaction():
     """Replace the transaction decorator from peewee to a noop one"""
 
     noop_decorator = contextlib.contextmanager(lambda: (yield))
+
     db.connector.database.transaction = noop_decorator
     imp.reload(api.utensils)
     imp.reload(api.ingredients)
@@ -24,10 +25,22 @@ def mock_transaction():
     imp.reload(api)
 
 
+@pytest.fixture(autouse=True, scope='module')
+def mock_connect(request):
+    """Avoid connection by replacing the function with a noop one"""
+    connect = db.connector.database.connect
+    db.connector.database.connect = lambda: None
+
+    def finalize():
+        """Restore connect function for e2e tests"""
+        db.connector.database.connect = connect
+
+    request.addfinalizer(finalize)
+
+
 # Override mock.call to be compliant with peewee __eq__ override
 unittest.mock._Call = test.utils._Call # pylint: disable=protected-access
 unittest.mock.MagicMock = test.utils.MagicMock
-
 
 @pytest.fixture(autouse=True)
 def app():
