@@ -11,7 +11,7 @@ import api
 import db.connector
 
 if __name__ == "__main__":
-    debug = int(os.environ.get('DEBUG')) != 0
+    debug = bool(os.environ.get('DEBUG'))
     db.connector.database.init(**db.connector.config)
 
     if debug:
