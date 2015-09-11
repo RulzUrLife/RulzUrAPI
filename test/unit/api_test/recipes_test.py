@@ -5,7 +5,7 @@ import unittest.mock as mock
 import peewee
 import pytest
 
-import api.recipes
+import api.recipes.endpoint as api_recipes
 import db.models as models
 import test.utils as utils
 import utils.helpers as helpers
@@ -42,7 +42,7 @@ class TestUtilityFunctions(object):
                             mocks.mock_ingrs_delete)
         monkeypatch.setattr('db.models.RecipeIngredients.insert_many',
                             mocks.mock_ingrs_insert)
-        monkeypatch.setattr('api.recipes.ingredients_parsing',
+        monkeypatch.setattr(api_recipes, 'ingredients_parsing',
                             mocks.mock_ingrs_parsing)
 
         monkeypatch.setattr('db.models.Utensil.select',
@@ -51,7 +51,7 @@ class TestUtilityFunctions(object):
                             mocks.mock_utensils_delete)
         monkeypatch.setattr('db.models.RecipeUtensils.insert_many',
                             mocks.mock_utensils_insert)
-        monkeypatch.setattr('api.recipes.utensils_parsing',
+        monkeypatch.setattr(api_recipes, 'utensils_parsing',
                             mocks.mock_utensils_parsing)
 
         return mocks
@@ -63,7 +63,7 @@ class TestUtilityFunctions(object):
         get_clause = peewee.Expression(models.Recipe.id, peewee.OP.EQ,
                                        mock.sentinel.recipe_id)
         monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
-        returned_recipe = api.recipes.get_recipe(mock.sentinel.recipe_id)
+        returned_recipe = api_recipes.get_recipe(mock.sentinel.recipe_id)
 
         assert returned_recipe == mock.sentinel.recipe
         assert mock_recipe_get.call_args_list == [mock.call(get_clause)]
@@ -75,7 +75,7 @@ class TestUtilityFunctions(object):
 
         monkeypatch.setattr('db.models.Recipe.get', mock_recipe_get)
         with pytest.raises(helpers.APIException) as excinfo:
-            api.recipes.get_recipe(None)
+            api_recipes.get_recipe(None)
 
         assert excinfo.value.args == ('Recipe not found', 404, None)
 
@@ -94,7 +94,7 @@ class TestUtilityFunctions(object):
         execute.return_value = mock.sentinel.rcps
 
         monkeypatch.setattr('db.models.Recipe.select', mock_rcp_select)
-        rcps = api.recipes.select_recipes(mock.sentinel.where_clause)
+        rcps = api_recipes.select_recipes(mock.sentinel.where_clause)
 
         select_calls = [mock.call(models.Recipe,
                                   models.RecipeIngredients, models.Ingredient,
@@ -123,7 +123,7 @@ class TestUtilityFunctions(object):
         monkeypatch.setattr('db.connector.database.execute_sql',
                             mock_execute_sql)
 
-        api.recipes.lock_table(mock.sentinel.model)
+        api_recipes.lock_table(mock.sentinel.model)
         sql_str = ('LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE' %
                    str(mock.sentinel.me))
         model_entity_calls = [mock.call(mock.sentinel.model)]
@@ -153,7 +153,7 @@ class TestUtilityFunctions(object):
         elts_insert = [mock_elt_insert]
         elts_get = [mock.sentinel.elt_get]
 
-        rv = api.recipes.get_or_insert(model, elts_insert, elts_get)
+        rv = api_recipes.get_or_insert(model, elts_insert, elts_get)
 
         where_exp_get = peewee.Expression(model.id, peewee.OP.IN,
                                           [mock.sentinel.elt_get])
@@ -172,7 +172,7 @@ class TestUtilityFunctions(object):
         assert model_select_where.call_args_list == [mock.call(where_exp)]
 
         reset_mocks(mocks)
-        rv = api.recipes.get_or_insert(model, elts_insert, None)
+        rv = api_recipes.get_or_insert(model, elts_insert, None)
 
         assert rv == [mock.sentinel.rv]
         assert mock_model_insert_many.call_args_list == insert_many_calls
@@ -184,7 +184,7 @@ class TestUtilityFunctions(object):
         ]
 
         reset_mocks(mocks)
-        rv = api.recipes.get_or_insert(model, None, elts_get)
+        rv = api_recipes.get_or_insert(model, None, elts_get)
 
         assert rv == [mock.sentinel.rv]
         assert mock_model_insert_many.call_args_list == []
@@ -194,7 +194,7 @@ class TestUtilityFunctions(object):
         assert model_select_where.call_args_list == [mock.call(where_exp_get)]
 
         reset_mocks(mocks)
-        rv = api.recipes.get_or_insert(model, None, None)
+        rv = api_recipes.get_or_insert(model, None, None)
 
         assert rv == []
         assert mock_model_insert_many.call_args_list == []
@@ -225,9 +225,9 @@ class TestUtilityFunctions(object):
         mock_insert.pop.side_effect = iter([None, insert_name_sentinel])
         mock_db_insert.configure_mock(id=insert_id_sentinel,
                                       name=insert_name_sentinel)
-        monkeypatch.setattr('api.recipes.get_or_insert', mock_get_or_insert)
+        monkeypatch.setattr(api_recipes, 'get_or_insert', mock_get_or_insert)
 
-        rv = api.recipes.ingredients_parsing([mock_get, mock_insert])
+        rv = api_recipes.ingredients_parsing([mock_get, mock_insert])
 
         pop_calls = [mock.call('id', None), mock.call('name', None)]
         get_or_insert_calls = [mock.call(models.Ingredient,
@@ -255,9 +255,9 @@ class TestUtilityFunctions(object):
         mock_insert.get.return_value = None
         mock_get_or_insert.return_value = mock.sentinel.get_or_insert_rv
 
-        monkeypatch.setattr('api.recipes.get_or_insert', mock_get_or_insert)
+        monkeypatch.setattr(api_recipes, 'get_or_insert', mock_get_or_insert)
 
-        rv = api.recipes.utensils_parsing([mock_get, mock_insert])
+        rv = api_recipes.utensils_parsing([mock_get, mock_insert])
 
         get_id_calls = [mock.call('id'), mock.call('id')]
         get_or_insert_calls = [
@@ -289,7 +289,7 @@ class TestUtilityFunctions(object):
         mocks.mock_ingrs_parsing.return_value = [mock_ingr]
         mocks.mock_utensils_parsing.return_value = [mock.sentinel.utensil]
 
-        rv = api.recipes.update_recipe(mock_recipe)
+        rv = api_recipes.update_recipe(mock_recipe)
         pop_calls = [mock.call('id'),
                      mock.call('ingredients', None),
                      mock.call('utensils', None)]
@@ -372,7 +372,7 @@ class TestUtilityFunctions(object):
         utensils_select_where = utensils_select_join.return_value.where
         utensils_select_where.return_value = [mock.sentinel.utensil]
 
-        rv = api.recipes.update_recipe(mock_recipe)
+        rv = api_recipes.update_recipe(mock_recipe)
 
         ingrs_select_calls = [mock.call(models.RecipeIngredients,
                                         models.Ingredient)]
@@ -462,11 +462,11 @@ class TestRecipeAPI(object):
         monkeypatch.setattr('db.models.RecipeUtensils.insert_many',
                             mock_utensils_insert)
 
-        monkeypatch.setattr('api.recipes.ingredients_parsing',
+        monkeypatch.setattr(api_recipes, 'ingredients_parsing',
                             mock_ingrs_parsing)
-        monkeypatch.setattr('api.recipes.utensils_parsing',
+        monkeypatch.setattr(api_recipes, 'utensils_parsing',
                             mock_utensils_parsing)
-        monkeypatch.setattr('api.recipes.lock_table', mock_lock_table)
+        monkeypatch.setattr(api_recipes, 'lock_table', mock_lock_table)
 
         monkeypatch.setattr('utils.schemas.recipe_schema.dump',
                             mock_recipe_schema_dump)
@@ -542,9 +542,9 @@ class TestRecipeAPI(object):
             return_value=mock.Mock(data=mock_recipes)
         )
 
-        monkeypatch.setattr('api.recipes.lock_table', mock_lock_table)
+        monkeypatch.setattr(api_recipes, 'lock_table', mock_lock_table)
         monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-        monkeypatch.setattr('api.recipes.update_recipe', mock_update_recipe)
+        monkeypatch.setattr(api_recipes, 'update_recipe', mock_update_recipe)
         monkeypatch.setattr(schema, 'dump', mock_recipe_schema_dump)
 
         lock_table_calls = [mock.call(models.Utensil),
@@ -569,7 +569,8 @@ class TestRecipeAPI(object):
         mock_select_recipes = mock.Mock(return_value=iter([recipe]))
         mock_recipe_schema_dump = mock.Mock(return_value=(str(recipe), None))
 
-        monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
+        monkeypatch.setattr(api_recipes, 'select_recipes',
+                            mock_select_recipes)
         monkeypatch.setattr('utils.schemas.recipe_schema.dump',
                             mock_recipe_schema_dump)
 
@@ -590,7 +591,8 @@ class TestRecipeAPI(object):
         """Test get /recipes/<id> with a non existing recipe"""
         mock_select_recipes = mock.Mock(side_effect=StopIteration)
 
-        monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
+        monkeypatch.setattr(api_recipes, 'select_recipes',
+                            mock_select_recipes)
 
         recipe_get_page = app.get('/recipes/1/')
 
@@ -606,7 +608,7 @@ class TestRecipeAPI(object):
         mock_get_recipe = mock.Mock()
         mock_ingrs_select = mock.Mock()
 
-        monkeypatch.setattr('api.recipes.get_recipe', mock_get_recipe)
+        monkeypatch.setattr(api_recipes, 'get_recipe', mock_get_recipe)
         monkeypatch.setattr('db.models.RecipeIngredients.select',
                             mock_ingrs_select)
 
@@ -643,7 +645,7 @@ class TestRecipeAPI(object):
         mock_get_recipe = mock.Mock()
         mock_utensils_select = mock.Mock()
 
-        monkeypatch.setattr('api.recipes.get_recipe', mock_get_recipe)
+        monkeypatch.setattr(api_recipes, 'get_recipe', mock_get_recipe)
         monkeypatch.setattr('db.models.Utensil.select', mock_utensils_select)
 
         utensils_join = mock_utensils_select.return_value.join

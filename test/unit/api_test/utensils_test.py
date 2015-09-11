@@ -5,7 +5,7 @@ import unittest.mock as mock
 import peewee
 import pytest
 
-import api.utensils
+import api.utensils.endpoint as api_utensils
 import db.models as models
 import utils.schemas as schemas
 import utils.helpers as helpers
@@ -14,25 +14,25 @@ import test.utils as utils
 
 
 def test_get_utensil(monkeypatch):
-    """Test the api.utensils.get_utensil function"""
+    """Test the api_utensils.get_utensil function"""
     mock_utensil_get = mock.Mock(return_value=mock.sentinel.utensil)
     get_clause = peewee.Expression(models.Utensil.id, peewee.OP.EQ,
                                    mock.sentinel.utensil_id)
 
     monkeypatch.setattr('db.models.Utensil.get', mock_utensil_get)
-    returned_utensil = api.utensils.get_utensil(mock.sentinel.utensil_id)
+    returned_utensil = api_utensils.get_utensil(mock.sentinel.utensil_id)
 
     assert returned_utensil is mock.sentinel.utensil
     assert mock_utensil_get.call_args_list == [mock.call(get_clause)]
 
 
 def test_get_utensil_404(monkeypatch):
-    """Test the api.utensils.get_utensil function with inexistent element"""
+    """Test the api_utensils.get_utensil function with inexistent element"""
     mock_utensil_get = mock.Mock(side_effect=peewee.DoesNotExist)
 
     monkeypatch.setattr('db.models.Utensil.get', mock_utensil_get)
     with pytest.raises(helpers.APIException) as excinfo:
-        api.utensils.get_utensil(None)
+        api_utensils.get_utensil(None)
 
     assert excinfo.value.args == ('Utensil not found', 404, None)
 
@@ -50,7 +50,7 @@ def test_update_utensil(monkeypatch, utensil):
     dicts.return_value = mock.sentinel.utensil
 
     monkeypatch.setattr('db.models.Utensil.update', mock_utensil_update)
-    returned_utensil = api.utensils.update_utensil(utensil)
+    returned_utensil = api_utensils.update_utensil(utensil)
 
     assert returned_utensil is mock.sentinel.utensil
     assert mock_utensil_update.call_args_list == [mock.call(**utensil)]
@@ -60,12 +60,12 @@ def test_update_utensil(monkeypatch, utensil):
 
 
 def test_update_utensil_404(monkeypatch, utensil):
-    """Test the api.utensils.update_utensil function with inexistent element"""
+    """Test the api_utensils.update_utensil function with inexistent element"""
     mock_utensil_update = mock.Mock(side_effect=peewee.DoesNotExist)
 
     monkeypatch.setattr('db.models.Utensil.update', mock_utensil_update)
     with pytest.raises(helpers.APIException) as excinfo:
-        api.utensils.update_utensil(utensil)
+        api_utensils.update_utensil(utensil)
 
     assert excinfo.value.args == ('Utensil not found', 404, None)
 
@@ -134,8 +134,7 @@ def test_utensils_put(app, monkeypatch):
     mock_update_utensil = mock.Mock(return_value=utensil)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.utensils.utensils.update_utensil',
-                        mock_update_utensil)
+    monkeypatch.setattr(api_utensils, 'update_utensil', mock_update_utensil)
 
     schema = schemas.utensil_schema_list
     utensils_update_page = app.put('/utensils/', data=utensils)
@@ -154,8 +153,7 @@ def test_utensils_put_with_exception(app, monkeypatch):
     mock_update_utensil = mock.Mock(side_effect=helpers.APIException('Error'))
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.utensils.utensils.update_utensil',
-                        mock_update_utensil)
+    monkeypatch.setattr(api_utensils, 'update_utensil', mock_update_utensil)
 
     utensils_update_page = app.put('/utensils/', data=utensils)
 
@@ -171,7 +169,7 @@ def test_utensil_get(app, monkeypatch):
     mock_get_utensil = mock.Mock(return_value=sentinel_utensil)
     mock_utensil_dump = mock.Mock(return_value=(str(sentinel_utensil), None))
 
-    monkeypatch.setattr('api.utensils.utensils.get_utensil', mock_get_utensil)
+    monkeypatch.setattr(api_utensils, 'get_utensil', mock_get_utensil)
     monkeypatch.setattr('utils.schemas.utensil_schema.dump', mock_utensil_dump)
 
     utensil_page = app.get('/utensils/1/')
@@ -190,8 +188,7 @@ def test_utensil_put(app, monkeypatch):
     mock_update_utensil = mock.Mock(return_value=utensil)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.utensils.utensils.update_utensil',
-                        mock_update_utensil)
+    monkeypatch.setattr(api_utensils, 'update_utensil', mock_update_utensil)
 
     schema = schemas.utensil_schema_put
     utensil_put_page = app.put('/utensils/2/', data=utensil)
@@ -213,8 +210,9 @@ def test_utensil_get_recipes(app, monkeypatch):
     mock_select_recipes = mock.Mock(return_value=[mock.sentinel.recipe])
     mock_recipe_dump = mock.Mock(return_value=(mock_recipes, None))
 
-    monkeypatch.setattr('api.utensils.utensils.get_utensil', mock_get_utensil)
-    monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
+    monkeypatch.setattr(api_utensils, 'get_utensil', mock_get_utensil)
+    monkeypatch.setattr('api.recipes.select_recipes',
+                        mock_select_recipes)
     monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
                         mock_recipe_dump)
 

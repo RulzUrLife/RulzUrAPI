@@ -19,9 +19,11 @@ def mock_transaction():
     noop_decorator = contextlib.contextmanager(lambda: (yield))
 
     db.connector.database.transaction = noop_decorator
-    imp.reload(api.utensils.utensils)
+    imp.reload(api.utensils.endpoint)
     imp.reload(api.utensils)
+    imp.reload(api.ingredients.endpoint)
     imp.reload(api.ingredients)
+    imp.reload(api.recipes.endpoint)
     imp.reload(api.recipes)
     imp.reload(api)
 

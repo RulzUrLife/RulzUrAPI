@@ -5,7 +5,7 @@ import unittest.mock as mock
 import peewee
 import pytest
 
-import api.ingredients
+import api.ingredients.endpoint as api_ingredients
 import db.models as models
 import utils.schemas as schemas
 import utils.helpers as helpers
@@ -20,7 +20,7 @@ def test_get_ingredient(monkeypatch):
                                    mock.sentinel.ingredient_id)
 
     monkeypatch.setattr('db.models.Ingredient.get', mock_ingredient_get)
-    returned_ingredient = api.ingredients.get_ingredient(
+    returned_ingredient = api_ingredients.get_ingredient(
         mock.sentinel.ingredient_id
     )
 
@@ -34,7 +34,7 @@ def test_get_ingredient_404(monkeypatch):
 
     monkeypatch.setattr('db.models.Ingredient.get', mock_ingredient_get)
     with pytest.raises(helpers.APIException) as excinfo:
-        api.ingredients.get_ingredient(None)
+        api_ingredients.get_ingredient(None)
 
     assert excinfo.value.args == ('Ingredient not found', 404, None)
 
@@ -52,7 +52,7 @@ def test_update_ingredient(monkeypatch, ingredient):
     dicts.return_value = mock.sentinel.ingredient
 
     monkeypatch.setattr('db.models.Ingredient.update', mock_ingredient_update)
-    returned_ingredient = api.ingredients.update_ingredient(ingredient)
+    returned_ingredient = api_ingredients.update_ingredient(ingredient)
 
     assert returned_ingredient is mock.sentinel.ingredient
     assert mock_ingredient_update.call_args_list == [mock.call(**ingredient)]
@@ -67,7 +67,7 @@ def test_update_ingredient_404(monkeypatch, ingredient):
 
     monkeypatch.setattr('db.models.Ingredient.update', mock_ingredient_update)
     with pytest.raises(helpers.APIException) as excinfo:
-        api.ingredients.update_ingredient(ingredient)
+        api_ingredients.update_ingredient(ingredient)
 
     assert excinfo.value.args == ('Ingredient not found', 404, None)
 
@@ -133,7 +133,7 @@ def test_ingredients_put(app, monkeypatch, ingredients):
     )
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.ingredients.update_ingredient',
+    monkeypatch.setattr(api_ingredients, 'update_ingredient',
                         mock_update_ingredient)
 
     schema = schemas.ingredient_schema_list
@@ -158,7 +158,7 @@ def test_ingredients_put_with_exception(app, monkeypatch, ingredients):
     mock_update_ingredient = mock.Mock(side_effect=update_ingredient_returns)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.ingredients.update_ingredient',
+    monkeypatch.setattr(api_ingredients, 'update_ingredient',
                         mock_update_ingredient)
     ingredients_update_page = app.put('/ingredients/', data=ingredients)
 
@@ -176,7 +176,7 @@ def test_ingredient_get(app, monkeypatch, ingredient):
     mock_get_ingredient = mock.Mock(return_value=sentinel_ingredient)
     mock_ingredient_dump = mock.Mock(return_value=(ingredient, None))
 
-    monkeypatch.setattr('api.ingredients.get_ingredient', mock_get_ingredient)
+    monkeypatch.setattr(api_ingredients, 'get_ingredient', mock_get_ingredient)
     monkeypatch.setattr('utils.schemas.ingredient_schema.dump',
                         mock_ingredient_dump)
 
@@ -197,7 +197,7 @@ def test_ingredient_put(app, monkeypatch, ingredient):
     mock_update_ingredient = mock.Mock(return_value=ingredient)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.ingredients.update_ingredient',
+    monkeypatch.setattr(api_ingredients, 'update_ingredient',
                         mock_update_ingredient)
 
     schema = schemas.ingredient_schema_put
@@ -221,7 +221,7 @@ def test_ingredient_get_recipes(app, monkeypatch):
     mock_select_recipes = mock.Mock(return_value=[mock.sentinel.recipe])
     mock_recipe_dump = mock.Mock(return_value=(mock_recipes, None))
 
-    monkeypatch.setattr('api.ingredients.get_ingredient', mock_get_ingredient)
+    monkeypatch.setattr(api_ingredients, 'get_ingredient', mock_get_ingredient)
     monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
     monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
                         mock_recipe_dump)
