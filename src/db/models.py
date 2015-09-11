@@ -60,7 +60,7 @@ class Recipe(BaseModel):
     """database's recipe table"""
     id = peewee.PrimaryKeyField()
     name = peewee.CharField()
-    directions = playhouse.postgres_ext.JSONField()
+    directions = playhouse.postgres_ext.BinaryJSONField()
     difficulty = peewee.IntegerField()
     duration = db.orm.EnumField(choices=[
         '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45', '45/60',

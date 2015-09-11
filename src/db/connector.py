@@ -5,7 +5,7 @@ Load the password from a file if possible
 Set the database variable for deferred connection
 Set the schema for database models
 """
-import peewee
+import playhouse.postgres_ext
 import db.orm
 
 try:
@@ -26,6 +26,6 @@ config = {
 
 schema = 'rulzurkitchen'
 
-database = peewee.PostgresqlDatabase(None)
+database = playhouse.postgres_ext.PostgresqlExtDatabase(None)
 database.compiler_class = db.orm.QueryCompiler
 
