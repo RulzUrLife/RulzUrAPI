@@ -11,7 +11,6 @@ import os
 
 import flask
 import utils.helpers
-import utils.overrides
 
 import api.recipes
 import api.utensils
@@ -19,7 +18,22 @@ import api.ingredients
 
 import db.connector
 
-app = utils.overrides.Flask(__name__)
+# pylint: disable=too-few-public-methods
+class Flask(flask.Flask):
+    """RulzUrKitchen specific Flask app"""
+
+    def make_response(self, rv):
+        data, code, headers = utils.helpers.unpack(rv)
+        tpl = getattr(flask.request, 'tpl', None)
+        if tpl is not None:
+            rv = flask.render_template(tpl, **data), code, headers
+        elif isinstance(data, dict):
+            rv = flask.jsonify(data), code, headers
+
+        return super(Flask, self).make_response(rv)
+
+
+app = Flask(__name__)
 
 # Register error handlers
 app.register_error_handler(

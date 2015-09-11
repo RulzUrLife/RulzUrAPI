@@ -134,7 +134,8 @@ def test_utensils_put(app, monkeypatch):
     mock_update_utensil = mock.Mock(return_value=utensil)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
+    monkeypatch.setattr('api.utensils.utensils.update_utensil',
+                        mock_update_utensil)
 
     schema = schemas.utensil_schema_list
     utensils_update_page = app.put('/utensils/', data=utensils)
@@ -153,7 +154,8 @@ def test_utensils_put_with_exception(app, monkeypatch):
     mock_update_utensil = mock.Mock(side_effect=helpers.APIException('Error'))
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
+    monkeypatch.setattr('api.utensils.utensils.update_utensil',
+                        mock_update_utensil)
 
     utensils_update_page = app.put('/utensils/', data=utensils)
 
@@ -169,7 +171,7 @@ def test_utensil_get(app, monkeypatch):
     mock_get_utensil = mock.Mock(return_value=sentinel_utensil)
     mock_utensil_dump = mock.Mock(return_value=(str(sentinel_utensil), None))
 
-    monkeypatch.setattr('api.utensils.get_utensil', mock_get_utensil)
+    monkeypatch.setattr('api.utensils.utensils.get_utensil', mock_get_utensil)
     monkeypatch.setattr('utils.schemas.utensil_schema.dump', mock_utensil_dump)
 
     utensil_page = app.get('/utensils/1/')
@@ -188,7 +190,8 @@ def test_utensil_put(app, monkeypatch):
     mock_update_utensil = mock.Mock(return_value=utensil)
 
     monkeypatch.setattr('utils.helpers.raise_or_return', mock_raise_or_return)
-    monkeypatch.setattr('api.utensils.update_utensil', mock_update_utensil)
+    monkeypatch.setattr('api.utensils.utensils.update_utensil',
+                        mock_update_utensil)
 
     schema = schemas.utensil_schema_put
     utensil_put_page = app.put('/utensils/2/', data=utensil)
@@ -210,7 +213,7 @@ def test_utensil_get_recipes(app, monkeypatch):
     mock_select_recipes = mock.Mock(return_value=[mock.sentinel.recipe])
     mock_recipe_dump = mock.Mock(return_value=(mock_recipes, None))
 
-    monkeypatch.setattr('api.utensils.get_utensil', mock_get_utensil)
+    monkeypatch.setattr('api.utensils.utensils.get_utensil', mock_get_utensil)
     monkeypatch.setattr('api.recipes.select_recipes', mock_select_recipes)
     monkeypatch.setattr('utils.schemas.recipe_schema_list.dump',
                         mock_recipe_dump)

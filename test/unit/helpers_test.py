@@ -2,6 +2,7 @@
 
 import unittest.mock as mock
 
+import flask
 import pytest
 
 import utils.helpers as helpers
@@ -127,53 +128,21 @@ def test_unpack():
 def test_template(monkeypatch):
     """Test the template decorator
 
-    Posibilities are:
-
-    render a template according to the header, if the template exists
-    return a tuple otherwise
+    attach a template to the request if mimetype match mapping
     """
-    data = {str(mock.sentinel.key): mock.sentinel.value}
-    mapping = {'html/text': mock.sentinel.template}
-
-    mock_data = mock.MagicMock(wraps=data)
+    mapping = {'html/text': mock.sentinel.tpl}
     mock_mapping = mock.MagicMock(wraps=mapping)
 
-    unpack_rv = mock_data, mock.sentinel.code, mock.sentinel.headers
-
     mock_req = mock.Mock(accept_mimetypes=mock.Mock(best='html/text'))
-    mock_render_template = mock.Mock()
-    mock_unpack = mock.Mock(return_value=unpack_rv)
-
-    mock_render_template.return_value = mock.sentinel.template_rendered
 
     monkeypatch.setattr('flask.request', mock_req)
-    monkeypatch.setattr('flask.render_template', mock_render_template)
-    monkeypatch.setattr('utils.helpers.unpack', mock_unpack)
 
     decorator = helpers.template(mock_mapping)
 
     func = decorator(lambda: mock.sentinel.rv)
     rv = func()
 
-    render_template_args = [mock.call(mock.sentinel.template, **data)]
-
-    assert rv == (mock.sentinel.template_rendered, mock.sentinel.code,
-                  mock.sentinel.headers)
-    assert mock_unpack.call_args_list == [mock.call(mock.sentinel.rv)]
+    assert rv == mock.sentinel.rv
+    assert flask.request.tpl == mock.sentinel.tpl
     assert mock_mapping.get.call_args_list == [mock.call('html/text')]
-    assert mock_render_template.call_args_list == render_template_args
-
-    mock_mapping = mock.MagicMock(wraps={})
-    mock_render_template.reset_mock()
-    mock_unpack.reset_mock()
-
-    decorator = helpers.template(mock_mapping)
-    func = decorator(lambda: mock.sentinel.rv)
-
-    rv = func()
-
-    assert rv == unpack_rv
-    assert mock_unpack.call_args_list == [mock.call(mock.sentinel.rv)]
-    assert mock_mapping.get.call_args_list == [mock.call('html/text')]
-    assert mock_render_template.call_args_list == []
 

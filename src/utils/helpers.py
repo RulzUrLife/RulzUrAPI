@@ -1,4 +1,6 @@
 """Helpers for rulzurapi"""
+import functools
+
 import flask
 import peewee
 
@@ -61,3 +63,22 @@ def unpack(value):
 
     return value, 200, {}
 
+def template(mapping):
+    """Template decorator
+
+    This decorator is used to attach a templates mapping to the request.
+    The template will then be evaluated according to headers
+    """
+    def decorator(func):
+        """Take the function to decorate and return a wrapper"""
+
+        @functools.wraps(func)
+        def wrapper(*args):
+            """Wrap the function call, attach the template if needed"""
+            mimetype = flask.request.accept_mimetypes.best
+            flask.request.tpl = mapping.get(mimetype)
+            return func(*args)
+
+        return wrapper
+
+    return decorator

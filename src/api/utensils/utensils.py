@@ -1,15 +1,14 @@
 """API utensils entrypoints"""
+import flask
 
 import api.recipes
 import db.models
 import db.connector
 import utils.helpers
-import utils.overrides
 import utils.schemas as schemas
 
 import peewee
-
-blueprint = utils.overrides.Blueprint('utensils', __name__)
+blueprint = flask.Blueprint('utensils', __name__, template_folder='templates')
 
 def get_utensil(utensil_id):
     """Get a specific utensil or raise 404 if it does not exists"""
@@ -34,7 +33,7 @@ def update_utensil(utensil):
 
 
 @blueprint.route('/')
-@blueprint.templates_mapping({'text/html': 'utensils.html'})
+@utils.helpers.template({'text/html': 'utensils.html'})
 def utensils_get():
     """List all utensils"""
     return {'utensils': list(db.models.Utensil.select().dicts())}
