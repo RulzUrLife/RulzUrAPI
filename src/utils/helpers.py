@@ -73,11 +73,11 @@ def template(mapping):
         """Take the function to decorate and return a wrapper"""
 
         @functools.wraps(func)
-        def wrapper(*args):
+        def wrapper(*args, **kwargs):
             """Wrap the function call, attach the template if needed"""
             mimetype = flask.request.accept_mimetypes.best
             flask.request.tpl = mapping.get(mimetype)
-            return func(*args)
+            return func(*args, **kwargs)
 
         return wrapper
 

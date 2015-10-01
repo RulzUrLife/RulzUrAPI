@@ -8,7 +8,7 @@ import db.models as models
 import utils.helpers
 import utils.schemas as schemas
 
-blueprint = flask.Blueprint('recipes', __name__)
+blueprint = flask.Blueprint('recipes', __name__, template_folder='templates')
 
 def get_recipe(recipe_id):
     """Get a specific recipe or raise 404 if it does not exists"""
@@ -149,6 +149,7 @@ def update_recipe(recipe):
 
 
 @blueprint.route('/')
+@utils.helpers.template({'text/html': 'recipes.html'})
 def recipes_get():
     """List all recipes"""
     return {'recipes': list(models.Recipe.select().dicts())}
@@ -208,6 +209,7 @@ def recipes_put():
 
 
 @blueprint.route('/<int:recipe_id>/')
+@utils.helpers.template({'text/html': 'recipe.html'})
 def recipe_get(recipe_id):
     """Provide the recipe for recipe_id"""
     try:
