@@ -1,3 +1,62 @@
+{% extends 'base.html' %}
+
+{% block content %}
 <div class="recipe">
-  {{recipe.name}}
+  <h1>{{recipe.name}}</h1>
+  <section class="recipe-desc">
+    <div class="recipe-metadata">
+      <div>category: {{recipe.category}}</div>
+      <div>duration: {{recipe.duration}}</div>
+      <div>difficulty: {{recipe.difficulty}}</div>
+      <div style="clear: both"></div>
+    </div>
+    The recipe desc come here.
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec a diam lectus. Sed sit amet ipsum mauris. Maecenas congue ligula ac quam viverra nec consectetur ante hendrerit. Donec et mollis dolor. Praesent et diam eget libero egestas mattis sit amet vitae augue. Nam tincidunt congue enim, ut porta lorem lacinia consectetur. Donec ut libero sed arcu vehicula ultricies a non tortor. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aenean ut gravida lorem. Ut turpis felis,
+pulvinar a semper sed, adipiscing id dolor. Pellentesque auctor nisi id magna consequat sagittis.
+  </section>
+  <section class="two-columns">
+    {% set pivot = (recipe.ingredients|length / 2 )|round|int %}
+    <div class="left">
+      <ul>
+      {% for ingredient in recipe.ingredients[:pivot] %}
+        <li>{{ingredient.quantity}} {{ingredient.measurement}} {{ingredient.name}}</li>
+      {% endfor %}
+      </ul>
+    </div>
+    <div class="right">
+      <ul>
+      {% for ingredient in recipe.ingredients[pivot:] %}
+        <li>{{ingredient.quantity}} {{ingredient.measurement}} {{ingredient.name}}</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </section>
+  <div style="clear: both">
+  <section class="two-columns">
+    {% set pivot = (recipe.utensils|length / 2 )|round|int %}
+    <div class="left">
+      <ul>
+      {% for utensil in recipe.utensils[:pivot] %}
+        <li>{{utensil.name}}</li>
+      {% endfor %}
+      </ul>
+    </div>
+    <div class="right">
+      <ul>
+      {% for utensil in recipe.utensils[pivot:] %}
+        <li>{{utensil.name}}</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <div style="clear: both">
+  <article class="directions">
+    {% for dir_title, dir in recipe.directions.items() %}
+    <section class="direction">
+      {{dir_title}}: {{dir}}
+    </section>
+    {% endfor %}
+  </article>
 </div>
+{% endblock %}

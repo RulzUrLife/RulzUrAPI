@@ -18,7 +18,6 @@ if __name__ == "__main__":
         logger = logging.getLogger('peewee')
         logger.setLevel(logging.DEBUG)
         logger.addHandler(logging.StreamHandler())
-
     api.app.run(
         host="0.0.0.0",
         debug=debug,

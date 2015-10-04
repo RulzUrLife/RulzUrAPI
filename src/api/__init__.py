@@ -40,6 +40,9 @@ app.register_error_handler(
     utils.helpers.APIException, utils.helpers.jsonify_api_exception
 )
 
+# Add jinja extensions
+#app.jinja_env.add_extension('jinja2.ext.loopcontrols')
+
 @app.before_request
 def _db_connect():
     """ This hook ensures that a connection is opened to handle any queries
