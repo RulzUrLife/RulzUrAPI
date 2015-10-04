@@ -1,4 +1,4 @@
 flask
 peewee>=2.6.2 # need the update feature
 psycopg2
-marshmallow
+marshmallow<2.0.0
