@@ -7,7 +7,7 @@
   <meta name="description" content="">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="{{ url_for('base.static', filename='css/main.css') }}">
 
   <!--[if lt IE 9]>
   <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
@@ -22,6 +22,6 @@
     {% block content %}
     {% endblock %}
   </div>
-  <script src="/static/js/main.js"></script>
+  <script src="{{ url_for('base.static', filename='js/main.js') }}"></script>
 </body>
 </html>

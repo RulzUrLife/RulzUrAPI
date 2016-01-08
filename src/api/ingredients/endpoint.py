@@ -3,7 +3,8 @@ import flask
 
 import api.recipes
 import db.models as models
-import db.connector
+import db
+import utils.exceptions as exc
 import utils.helpers
 import utils.schemas as schemas
 
@@ -16,7 +17,7 @@ def get_ingredient(ingredient_id):
     try:
         return models.Ingredient.get(models.Ingredient.id == ingredient_id)
     except peewee.DoesNotExist:
-        raise utils.helpers.APIException('Ingredient not found', 404)
+        raise exc.APIException('ingredient not found', 404)
 
 
 def update_ingredient(ingredient):
@@ -28,69 +29,61 @@ def update_ingredient(ingredient):
                 .update(**ingredient)
                 .where(models.Ingredient.id == ingredient_id)
                 .returning()
-                .dicts())
-    except peewee.DoesNotExist:
-        raise utils.helpers.APIException('Ingredient not found', 404)
+                .execute()
+                .next())
+    except StopIteration:
+        raise exc.APIException('ingredient not found', 404)
 
 
-@blueprint.route('/')
+@blueprint.route('')
 def ingredients_get():
     """List all ingredients"""
-    return {'ingredients': list(models.Ingredient.select().dicts())}
+    ingredients = models.Ingredient.select().dicts()
+    return schemas.ingredient.dump(ingredients, many=True).data
 
 
-@blueprint.route('/', methods=['POST'])
-@db.connector.database.transaction()
+@blueprint.route('', methods=['POST'])
+@db.database.transaction()
 def ingredients_post():
     """Create an ingredient"""
-    schema = schemas.ingredient_schema_post
-    ingredient = utils.helpers.raise_or_return(schema)
+    ingredient = utils.helpers.raise_or_return(schemas.ingredient.post)
     try:
         ingredient = models.Ingredient.create(**ingredient)
     except peewee.IntegrityError:
-        raise utils.helpers.APIException('Ingredient already exists', 409)
+        raise exc.APIException('ingredient already exists', 409)
 
-    ingredient, _ = schemas.ingredient_schema.dump(ingredient)
-    return {'ingredient': ingredient}, 201
+    return schemas.ingredient.dump(ingredient).data, 201
 
 
-@blueprint.route('/', methods=['PUT'])
-@db.connector.database.transaction()
+@blueprint.route('', methods=['PUT'])
+@db.database.transaction()
 def ingredients_put():
     """Update multiple ingredients"""
-
-    data = utils.helpers.raise_or_return(schemas.ingredient_schema_list)
-
-    ingredients = []
-    for ingredient in data['ingredients']:
-        try:
-            ingredients.append(update_ingredient(ingredient))
-        except utils.helpers.APIException:
-            pass
-
-    return {'ingredients': ingredients}
+    ingredients = utils.helpers.raise_or_return(schemas.ingredient.put, True)
+    ingredients = [update_ingredient(ingredient) for ingredient in ingredients]
+    return schemas.ingredient.dump(ingredients, many=True).data
 
 
-@blueprint.route('/<int:ingredient_id>/')
+@blueprint.route('/<int:ingredient_id>')
 def ingredient_get(ingredient_id):
     """Provide the ingredient for ingredient_id"""
     ingredient = get_ingredient(ingredient_id)
-    ingredient, _ = schemas.ingredient_schema.dump(ingredient)
-    return {'ingredient': ingredient}
+    return schemas.ingredient.dump(ingredient).data
 
 
-@blueprint.route('/<int:ingredient_id>/', methods=['PUT'])
-@db.connector.database.transaction()
+@blueprint.route('/<int:ingredient_id>', methods=['PUT'])
+@db.database.transaction()
 def ingredient_put(ingredient_id):
     """Update the ingredient for ingredient_id"""
+    ingredient = utils.helpers.raise_or_return(schemas.ingredient.put)
+    if not ingredient:
+        raise exc.APIException('no data provided for update')
 
-    schema = schemas.ingredient_schema_put
-    ingredient = utils.helpers.raise_or_return(schema)
     ingredient['id'] = ingredient_id
-    return {'ingredient': update_ingredient(ingredient)}
+    return schemas.ingredient.dump(update_ingredient(ingredient)).data
 
 
-@blueprint.route('/<int:ingredient_id>/recipes/')
+@blueprint.route('/<int:ingredient_id>/recipes')
 def get(ingredient_id):
     """List all the recipes for ingredient_id"""
     get_ingredient(ingredient_id)
@@ -99,5 +92,3 @@ def get(ingredient_id):
     recipes = list(api.recipes.select_recipes(where_clause))
     recipes, _ = schemas.recipe_schema_list.dump({'recipes': recipes})
     return recipes
-
-

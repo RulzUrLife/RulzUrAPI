@@ -2,7 +2,7 @@
 import flask
 import peewee
 
-import db.connector
+import db
 import db.models as models
 
 import utils.helpers
@@ -19,20 +19,23 @@ def get_recipe(recipe_id):
         raise utils.helpers.APIException('Recipe not found', 404)
 
 
-def select_recipes(where_clause):
-    """Select recipes according to where_clause"""
-    return (models.Recipe
-            .select(models.Recipe,
-                    models.RecipeIngredients, models.Ingredient,
-                    models.RecipeUtensils, models.Utensil)
-            .join(models.RecipeIngredients)
-            .join(models.Ingredient)
-            .switch(models.Recipe)
-            .join(models.RecipeUtensils)
-            .join(models.Utensil)
-            .where(where_clause)
-            .aggregate_rows()
-            .execute())
+def select_recipes(where_clause=None):
+    """Select recipes according to where_clause if provided"""
+
+    recipes = (
+        models.Recipe
+        .select(models.Recipe, models.RecipeIngredients, models.Ingredient,
+                models.RecipeUtensils, models.Utensil)
+        .join(models.RecipeIngredients)
+        .join(models.Ingredient)
+        .switch(models.Recipe)
+        .join(models.RecipeUtensils)
+        .join(models.Utensil)
+    )
+    if where_clause:
+        recipes = recipes.where(where_clause)
+
+    return recipes.aggregate_rows().execute()
 
 
 def lock_table(model):
@@ -43,7 +46,7 @@ def lock_table(model):
     )
 
     #protect the database table against race condition
-    db.connector.database.execute_sql(lock_request)
+    db.database.execute_sql(lock_request)
 
 
 def get_or_insert(model, elts_insert, elts_get):
@@ -148,15 +151,16 @@ def update_recipe(recipe):
     return recipe
 
 
-@blueprint.route('/')
+@blueprint.route('')
 @utils.helpers.template({'text/html': 'recipes.html'})
 def recipes_get():
     """List all recipes"""
-    return {'recipes': list(models.Recipe.select().dicts())}
-
+    recipes = select_recipes()
+    import ipdb; ipdb.set_trace()
+    return schemas.recipes.dump(recipes, many=True).data
 
 @blueprint.route('/', methods=['POST'])
-@db.connector.database.transaction()
+@db.database.transaction()
 def recipes_post():
     """Create a recipe"""
     recipe = utils.helpers.raise_or_return(
@@ -195,7 +199,7 @@ def recipes_post():
 
 
 @blueprint.route('/', methods=['PUT'])
-@db.connector.database.transaction()
+@db.database.transaction()
 def recipes_put():
     """Update multiple recipes"""
     # avoid race condition by locking tables

@@ -4,11 +4,12 @@ Models from the database adapted to python through peewee ORM
 
 Due to non compliance with pylint we have a lot of exception in this file
 """
+import flask
 import peewee
 import playhouse.postgres_ext
 
-import db.connector
 import db.orm
+import db
 
 
 #pylint: disable=too-few-public-methods
@@ -39,8 +40,8 @@ class BaseModel(peewee.Model):
         this is just a linking to have this in a dedicated file and share it to
         the models
         """
-        database = db.connector.database
-        schema = db.connector.schema
+        database = db.database
+        schema = db.schema
 
 #pylint: disable=too-few-public-methods
 class Ingredient(BaseModel):
@@ -60,7 +61,7 @@ class Recipe(BaseModel):
     """database's recipe table"""
     id = peewee.PrimaryKeyField()
     name = peewee.CharField()
-    directions = playhouse.postgres_ext.BinaryJSONField()
+    #directions = playhouse.postgres_ext.BinaryJSONField()
     difficulty = peewee.IntegerField()
     duration = db.orm.EnumField(choices=[
         '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45', '45/60',

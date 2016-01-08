@@ -2,34 +2,23 @@
 import functools
 
 import flask
+import werkzeug.exceptions as werkzeug_exc
+import marshmallow.exceptions as marshmallow_exc
+import utils.exceptions as api_exc
 import peewee
 
-class APIException(Exception):
-    """Exception for the API, customize error output"""
-    status_code = 400
 
-    def __init__(self, message, status_code=None, payload=None):
-        super(APIException, self).__init__(
-            message, status_code or self.status_code, payload
-        )
 
-def jsonify_api_exception(api_exception):
-    """Return an http response wrapping an APIException"""
-    message, status_code, payload = api_exception.args
-
-    response_dict = {'message': message, 'status_code': status_code}
-    response_dict.update(dict(payload or ()))
-    return flask.jsonify(response_dict), status_code
-
-def raise_or_return(schema):
+def raise_or_return(schema, many=False):
     """Load the data in a dict, if errors are returned, an error is raised"""
     try:
-        data, errors = schema.load(flask.request.json)
-    except AttributeError:
-        raise APIException('Request malformed', 400,
-                           {'errors': 'JSON might be incorrect'})
+        data, errors = schema.load(flask.request.get_json(), many)
+    except (werkzeug_exc.BadRequest, marshmallow_exc.ValidationError):
+        raise api_exc.APIException(
+            'request malformed', 400, {'errors': 'JSON might be incorrect'}
+        )
     if errors:
-        raise APIException('Request malformed', 400, {'errors': errors})
+        raise api_exc.APIException('request malformed', 400, {'errors': errors})
 
     return data
 
@@ -40,9 +29,7 @@ def model_entity(model):
     ie: "schema"."table"
     """
     query_compiler = peewee.QueryCompiler()
-    me, _ = query_compiler._parse_entity(
-        model._as_entity(), None, None
-    )
+    me, _ = query_compiler._parse_entity(model._as_entity(), None, None)
     return me
 
 def unpack(value):

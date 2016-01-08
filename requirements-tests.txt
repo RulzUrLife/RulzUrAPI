@@ -1,3 +1,4 @@
 ipdb
 pytest
 pylint==1.4.1
+pytest-cov

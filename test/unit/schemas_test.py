@@ -800,6 +800,7 @@ class TestRecipeSchema(object):
         recipe.pop('id')
         data, errors = schemas.recipe_schema_list.load(recipes)
         error_msg = {'recipes': {'id': ['Missing data for required field.']}}
+        import ipdb; ipdb.set_trace()
         assert errors == error_msg
         assert data == {'recipes': None}
 

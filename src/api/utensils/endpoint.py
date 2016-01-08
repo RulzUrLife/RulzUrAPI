@@ -2,10 +2,11 @@
 import flask
 
 import api.recipes
-import db.models
-import db.connector
+import db.models as models
+import db
 import utils.helpers
 import utils.schemas as schemas
+import utils.exceptions as exc
 
 import peewee
 blueprint = flask.Blueprint('utensils', __name__, template_folder='templates')
@@ -13,9 +14,9 @@ blueprint = flask.Blueprint('utensils', __name__, template_folder='templates')
 def get_utensil(utensil_id):
     """Get a specific utensil or raise 404 if it does not exists"""
     try:
-        return db.models.Utensil.get(db.models.Utensil.id == utensil_id)
+        return models.Utensil.get(models.Utensil.id == utensil_id)
     except peewee.DoesNotExist:
-        raise utils.helpers.APIException('Utensil not found', 404)
+        raise exc.APIException('utensil not found', 404)
 
 
 def update_utensil(utensil):
@@ -23,77 +24,72 @@ def update_utensil(utensil):
     utensil_id = utensil.pop('id')
 
     try:
-        return (db.models.Utensil
+        return (models.Utensil
                 .update(**utensil)
-                .where(db.models.Utensil.id == utensil_id)
+                .where(models.Utensil.id == utensil_id)
                 .returning()
-                .dicts())
-    except peewee.DoesNotExist:
-        raise utils.helpers.APIException('Utensil not found', 404)
+                .execute()
+                .next())
+    except StopIteration:
+        raise exc.APIException('utensil not found', 404)
 
 
-@blueprint.route('/')
+@blueprint.route('')
 @utils.helpers.template({'text/html': 'utensils.html'})
 def utensils_get():
     """List all utensils"""
-    return {'utensils': list(db.models.Utensil.select().dicts())}
+    utensils = models.Utensil.select().dicts()
+    return schemas.utensil.dump(utensils, many=True).data
 
 
-@blueprint.route('/', methods=['POST'])
-@db.connector.database.transaction()
+@blueprint.route('', methods=['POST'])
+@db.database.transaction()
 def utensils_post():
     """Create an utensil"""
-    utensil = utils.helpers.raise_or_return(schemas.utensil_schema_post)
-
+    utensil = utils.helpers.raise_or_return(schemas.utensil.post)
     try:
-        utensil = db.models.Utensil.create(**utensil)
+        utensil = models.Utensil.create(**utensil)
     except peewee.IntegrityError:
-        raise utils.helpers.APIException('Utensil already exists', 409)
+        raise exc.APIException('utensil already exists', 409)
 
-    utensil, _ = schemas.utensil_schema.dump(utensil)
-    return {'utensil': utensil}, 201
+    return schemas.utensil.dump(utensil).data, 201
 
 
-@blueprint.route('/', methods=['PUT'])
-@db.connector.database.transaction()
+@blueprint.route('', methods=['PUT'])
+@db.database.transaction()
 def utensils_put():
     """Update multiple utensils"""
+    utensils = utils.helpers.raise_or_return(schemas.utensil.put, True)
+    utensils = [update_utensil(utensil) for utensil in utensils]
 
-    data = utils.helpers.raise_or_return(schemas.utensil_schema_list)
-
-    utensils = []
-    for utensil in data['utensils']:
-        try:
-            utensils.append(update_utensil(utensil))
-        except utils.helpers.APIException:
-            pass
-
-    return {'utensils': utensils}
+    return schemas.utensil.dump(utensils, many=True).data
 
 
-@blueprint.route('/<int:utensil_id>/')
+@blueprint.route('/<int:utensil_id>')
 def utensil_get(utensil_id):
     """Provide the utensil for utensil_id"""
-    utensil, _ = schemas.utensil_schema.dump(get_utensil(utensil_id))
-    return {'utensil': utensil}
+    utensil = get_utensil(utensil_id)
+    return schemas.utensil.dump(utensil).data
 
 
-@blueprint.route('/<int:utensil_id>/', methods=['PUT'])
-@db.connector.database.transaction()
+@blueprint.route('/<int:utensil_id>', methods=['PUT'])
+@db.database.transaction()
 def utensil_put(utensil_id):
     """Update the utensil for utensil_id"""
+    utensil = utils.helpers.raise_or_return(schemas.utensil.put)
+    if not utensil:
+        raise exc.APIException('no data provided for update')
 
-    utensil = utils.helpers.raise_or_return(schemas.utensil_schema_put)
     utensil['id'] = utensil_id
-    return {'utensil': update_utensil(utensil)}
+    return schemas.utensil.dump(update_utensil(utensil)).data
 
 
-@blueprint.route('/<int:utensil_id>/recipes/')
-@db.connector.database.transaction()
+@blueprint.route('/<int:utensil_id>/recipes')
+@db.database.transaction()
 def recipe_get(utensil_id):
     """List all the recipes for utensil_id"""
     get_utensil(utensil_id)
-    where_clause = db.models.RecipeUtensils.utensil == utensil_id
+    where_clause = models.RecipeUtensils.utensil == utensil_id
 
     recipes = list(api.recipes.select_recipes(where_clause))
     recipes, _ = schemas.recipe_schema_list.dump({'recipes': recipes})

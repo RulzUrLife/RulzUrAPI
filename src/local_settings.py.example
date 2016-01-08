@@ -1,0 +1,5 @@
+import settings
+
+
+settings.DATABASE['password'] = 'another_password'
+settings.DATABASE['host'] = 'another_database'

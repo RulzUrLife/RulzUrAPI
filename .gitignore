@@ -1,1 +1,3 @@
-password
+src/local_settings.py
+.cache
+htmlcov

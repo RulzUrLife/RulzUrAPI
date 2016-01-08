@@ -19,10 +19,8 @@ class EnumField(peewee.Field):
             raise Exception("Invalid Enum Value `%s`", value)
         return str(value)
 
-    def get_column_type(self):
-        return "enum"
-
-    def __ddl_column__(self, _):
+    def __ddl_column__(self, toto):
+        import ipdb; ipdb.set_trace()
         return peewee.SQL("e_%s" % self.name)
 
 
