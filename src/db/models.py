@@ -70,11 +70,6 @@ class Recipe(BaseModel):
     category = db.orm.EnumField(choices=['starter', 'main', 'dessert'])
 
 
-    #Foreign keys linking
-    utensils = None
-    ingredients = None
-
-
 #pylint: disable=too-few-public-methods
 class RecipeIngredients(BaseModel):
     """database's recipe_ingredients table"""
@@ -127,4 +122,3 @@ class RecipeUtensils(BaseModel):
         """
         primary_key = peewee.CompositeKey('recipe', 'utensil')
         db_table = 'recipe_utensils'
-

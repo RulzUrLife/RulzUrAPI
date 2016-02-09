@@ -34,6 +34,12 @@ class Flask(flask.Flask):
         return super(Flask, self).make_response(rv)
 
 
+class Request(flask.Request):
+    def on_json_loading_failed(self, _):
+        raise exc.APIException(
+            'request malformed', 400, {'errors': 'JSON is incorrect'}
+        )
+
 def create_app(conf=None):
     conf = conf or {}
     app = Flask(__name__, static_folder=None)
@@ -42,6 +48,12 @@ def create_app(conf=None):
     app.config.from_pyfile('local_settings.py', silent=True)
     app.config.from_object(os.environ.get('RULZURAPI_SETTINGS', None))
     app.config.update(conf)
+
+    # Change default encoder
+    app.json_encoder = helpers.JSONEncoder
+
+    # Override default request object
+    app.request_class = Request
 
     # Logging support
     loggers = [app.logger,

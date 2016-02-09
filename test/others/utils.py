@@ -11,7 +11,7 @@ class TestEndpoint(abc.ABC):
         data_expected = {
             'status_code': 400,
             'message': 'request malformed',
-            'errors': 'JSON might be incorrect'
+            'errors': 'JSON is incorrect'
         }
 
         res = method(endpoint)

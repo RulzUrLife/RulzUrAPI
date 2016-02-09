@@ -84,7 +84,7 @@ def ingredient_put(ingredient_id):
 
 
 @blueprint.route('/<int:ingredient_id>/recipes')
-def get(ingredient_id):
+def recipes_get(ingredient_id):
     """List all the recipes for ingredient_id"""
     get_ingredient(ingredient_id)
     where_clause = models.RecipeIngredients.ingredient == ingredient_id

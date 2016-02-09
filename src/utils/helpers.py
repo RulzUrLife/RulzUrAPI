@@ -2,34 +2,31 @@
 import functools
 
 import flask
-import werkzeug.exceptions as werkzeug_exc
 import marshmallow.exceptions as marshmallow_exc
 import utils.exceptions as api_exc
 import peewee
 
 
+class JSONEncoder(flask.json.JSONEncoder):
+
+    def default(self, obj):
+        return super(JSONEncoder, self).default(obj)
 
 def raise_or_return(schema, many=False):
     """Load the data in a dict, if errors are returned, an error is raised"""
-    try:
-        data, errors = schema.load(flask.request.get_json(), many)
-    except (werkzeug_exc.BadRequest, marshmallow_exc.ValidationError):
-        raise api_exc.APIException(
-            'request malformed', 400, {'errors': 'JSON might be incorrect'}
-        )
+    data, errors = schema.load(flask.request.get_json(), many)
     if errors:
         raise api_exc.APIException('request malformed', 400, {'errors': errors})
 
     return data
 
-# pylint: disable=protected-access
 def model_entity(model):
     """Retrieve the entity of a specific model
 
     ie: "schema"."table"
     """
     query_compiler = peewee.QueryCompiler()
-    me, _ = query_compiler._parse_entity(model._as_entity(), None, None)
+    me, _ = query_compiler._parse_entity(model.as_entity(), None, None)
     return me
 
 def unpack(value):
@@ -69,3 +66,5 @@ def template(mapping):
         return wrapper
 
     return decorator
+
+

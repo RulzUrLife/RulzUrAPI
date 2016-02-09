@@ -29,8 +29,8 @@ def select_recipes(where_clause=None):
         .join(models.RecipeIngredients)
         .join(models.Ingredient)
         .switch(models.Recipe)
-        .join(models.RecipeUtensils)
-        .join(models.Utensil)
+        .join(models.RecipeUtensils, peewee.JOIN.LEFT_OUTER)
+        .join(models.Utensil, peewee.JOIN.LEFT_OUTER)
     )
     if where_clause:
         recipes = recipes.where(where_clause)
@@ -156,24 +156,15 @@ def update_recipe(recipe):
 def recipes_get():
     """List all recipes"""
     recipes = select_recipes()
-    import ipdb; ipdb.set_trace()
-    return schemas.recipes.dump(recipes, many=True).data
+    return schemas.recipe.dump(recipes, many=True).data
 
-@blueprint.route('/', methods=['POST'])
+
+@blueprint.route('', methods=['POST'])
 @db.database.transaction()
 def recipes_post():
     """Create a recipe"""
-    recipe = utils.helpers.raise_or_return(
-        utils.schemas.recipe_schema_post
-    )
-    count = (models.Recipe
-             .select()
-             .where(models.Recipe.name == recipe.get('name'))
-             .count())
-
-    if count:
-        raise utils.helpers.APIException('Recipe already exists.', 409)
-
+    recipe = utils.helpers.raise_or_return(utils.schemas.recipe.post)
+    import ipdb; ipdb.set_trace()
     # avoid race condition by locking tables
     lock_table(models.Utensil)
     lock_table(models.Ingredient)
