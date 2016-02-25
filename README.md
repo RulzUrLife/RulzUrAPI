@@ -11,43 +11,21 @@ The application API, this API will be public and used by the frontend.
  [official website](http://flask.pocoo.org/).
 
 
-# Running the application in dev mode
+# Running tests
 
-This application use docker as a development environment, so that nothing will
-be installed on your system except docker itself. It also allow to develop on
-every OS without troubles.
+`py.test -vvv --tb=line --cov=src/`
+`py.test -vvv --tb=line --cov=src/ --cov-report=html`
 
-* Install docker on your distro https://docs.docker.com/
-* Check if docker is correctly install by running: `docker run hello-world`
-* Build the development container: `docker build -t rulzurapi .`
-* Run it! `docker run -v $(pwd):/opt/rulzurapi -p 5000:5000
---link rulzurdb:rulzurdb -it rulzurapi`
-(this command line can vary if it is not launched through an UNIX shell)
+## Evaluate test running time
 
-# Command lines
+`python3 -m cProfile -o profile $(which py.test) test/others/`
 
-All the interaction with the application (except coding) will be done through
-docker, so here is the bunch of commands
+```python
 
-* `docker run -v $(pwd):/opt/rulzurapi -p 5000:5000 -it rulzurapi`:
-run the container in development mode (autoreload on file changes)
-* `docker run -v $(pwd):/opt/rulzurapi -it rulzurapi bash`:
-open a bash into the container if you need to have the application
-reachable in the browser add the following option `-p 5000:5000` before `-it`
+import pstats
+p = pstats.Stats('profile')
+p.strip_dirs()
+p.sort_stats('cumtime')
+p.print_stats(50)
 
-to run tests, run the previous command then inside the container run: `py.test`
-
-and for the lint tool: `source misc/pylint_files; pylint $PYLINT_FILES`
-
-# Working on the REST API
-
-It can be easier to work on the API by using some fixture, you can use the ones
-provided in the [misc](./misc) folder.
-
-You can use [jq](http://stedolan.github.io/jq/manual/) in addition,
-for requesting on the returned json. Here is a cli exemple of how to use is:
-
-```bash
-curl -X POST -H "Content-Type: application/json" -s -d @misc/post_recipe_1.json localhost:5000/recipes/ | jq '.'
 ```
-

@@ -17,21 +17,20 @@ class BaseModel(peewee.Model):
     """Define the common model configuration"""
 
     @classmethod
-    # pylint: disable=arguments-differ
-    def insert_many(cls, rows, unique_field=None):
-        """Insert many values if they not exists
+    def create_table(cls, *args, **kwargs):
+        for field in cls._meta.fields.values():
+            try:
+                field.pre_field_create(cls)
+            except AttributeError:
+                pass
 
-        unique_field determine the field on which the unique filter will be
-        applied
+        cls._meta.database.create_table(cls)
 
-        This function has a possibility of race condition, be sure to protect
-        your transaction and your table against concurrent access
-        """
-
-        if unique_field is None:
-            return db.orm.InsertQuery(cls, rows=rows)
-        else:
-            return db.orm.InsertQuery(cls, unique=unique_field, rows=rows)
+        for field in cls._meta.fields.values():
+            try:
+                field.post_field_create(cls)
+            except AttributeError:
+                pass
 
     class Meta(object):
         """Define the common database configuration for the models
@@ -46,22 +45,23 @@ class BaseModel(peewee.Model):
 #pylint: disable=too-few-public-methods
 class Ingredient(BaseModel):
     """database's ingredient table"""
-    id = peewee.PrimaryKeyField()
+    id = peewee.PrimaryKeyField(sequence='ingredient_id_seq')
     name = peewee.CharField()
 
 #pylint: disable=too-few-public-methods
 class Utensil(BaseModel):
     """database's utensil table"""
-    id = peewee.PrimaryKeyField()
+    id = peewee.PrimaryKeyField(sequence='utensil_id_seq')
     name = peewee.CharField()
+
 
 
 #pylint: disable=too-few-public-methods
 class Recipe(BaseModel):
     """database's recipe table"""
-    id = peewee.PrimaryKeyField()
+    id = peewee.PrimaryKeyField(sequence='recipe_id_seq')
     name = peewee.CharField()
-    #directions = playhouse.postgres_ext.BinaryJSONField()
+    directions = db.orm.ArrayField(db.orm.DirectionField)
     difficulty = peewee.IntegerField()
     duration = db.orm.EnumField(choices=[
         '0/5', '5/10', '10/15', '15/20', '20/25', '25/30', '30/45', '45/60',

@@ -1,96 +1,81 @@
-"""Enum related codebase
-
-cloned and (not) adapted from
-https://gist.github.com/b1naryth1ef/607e92dc8c1748a06b5d
 """
+
+"""
+import collections
 import operator
+import re
+
 import peewee
+import playhouse
+
+import utils.helpers
 
 class EnumField(peewee.Field):
     """Enum field
 
     define an enum field in your model like this:
-    EnumField(choices=["a", "b", "c"])
+    EnumField(choices=['a', 'b', 'c'])
     """
-    db_field = "enum"
+    db_field = 'enum'
 
-    def coerce(self, value):
+    def pre_field_create(self, model):
+        field = 'e_%s' % self.name
+
+        self.get_database().get_conn().cursor().execute(
+            'DROP TYPE IF EXISTS %s;' % field
+        )
+
+        query = self.get_database().get_conn().cursor()
+        tail = ', '.join(["'%s'"] * len(self.choices)) % tuple(self.choices)
+        q = 'CREATE TYPE %s AS ENUM (%s);' % (field, tail)
+        query.execute(q)
+
+    def post_field_create(self, model):
+        self.db_field = 'e_%s' % self.name
+
+    def __ddl_column__(self, name):
+        return peewee.SQL('e_%s' % self.name)
+
+    def db_value(self, value):
         if value not in self.choices:
-            raise Exception("Invalid Enum Value `%s`", value)
+            raise ValueError('Invalid Enum Value "%s"' % value)
         return str(value)
 
-    def __ddl_column__(self, toto):
-        import ipdb; ipdb.set_trace()
-        return peewee.SQL("e_%s" % self.name)
+
+class DirectionField(peewee.Field):
+    db_field = 'direction'
+
+    def db_value(self, value):
+        return '("%s", "%s")' % (value[0], value[1])
+
+    def python_value(self, value):
+        title, text = value.strip('()').split(',')
+
+        title = title.strip('"')
+        text = text.strip('"')[1:]
+        return utils.helpers.Direction(title, text)
 
 
-# pylint: disable=abstract-method
-class InsertQuery(peewee.InsertQuery):
-    """Overrides peewee.InsertQuery to add a unique feature"""
+class ArrayField(playhouse.postgres_ext.ArrayField):
+    parser = re.compile("\(.*?\)")
+    default_index_type = None
 
-    def __init__(self, model_class, unique=None, **kwargs):
-        self._unique = unique
-        super(InsertQuery, self).__init__(model_class, **kwargs)
+    def db_value(self, value):
+        def stringify(elt):
+            if utils.helpers.is_iterable(elt):
+                return '"(%s)"' % ', '.join(elt)
+            else:
+                return str(elt)
 
-    def sql(self):
-        if self._unique:
-            return self.compiler().generate_unique_insert(self)
+        return '{%s}' % ', '.join(
+            stringify(elt) for elt in super(ArrayField, self).db_value(value)
+        )
+
+    def python_value(self, value):
+        if isinstance(value, str):
+            values = [value.replace('\\"', '"')
+                      for value in self.parser.findall(value)]
         else:
-            return self.compiler().generate_insert(self)
+            values = value
 
-    def execute(self):
-        if self._rows and len(self._rows):
-            return self.database.rows_affected(self._execute())
-
-# pylint: disable=protected-access, too-few-public-methods
-class QueryCompiler(peewee.QueryCompiler):
-    """Overrides peewee.QueryCompiler to add custom behavior"""
-
-    def generate_unique_insert(self, query):
-        """Generate an insert SQL statement which check an unique field"""
-
-        model = query.model_class
-        unique_entity = query._unique
-        alias_map = self.alias_map_class()
-        alias_map.add(model, model._meta.db_table)
-        clauses = [peewee.SQL('INSERT INTO'), model._as_entity()]
-
-        fields, value_clauses = [], []
-        have_fields = False
-
-        for row_dict in query._iter_rows():
-            if not have_fields:
-                fields = sorted(
-                    row_dict.keys(), key=operator.attrgetter('_sort_key'))
-                have_fields = True
-
-            values = []
-            for field in fields:
-                value = row_dict[field]
-                if not isinstance(value, (peewee.Node, peewee.Model)):
-                    value = peewee.Param(value, conv=field.db_value)
-                values.append(value)
-
-            value_clauses.append(peewee.EnclosedClause(*values))
-
-        clauses.extend([
-            self._get_field_clause(fields),
-            peewee.SQL('SELECT * FROM'),
-            peewee.EnclosedClause(
-                peewee.Clause(
-                    peewee.SQL('VALUES'), peewee.CommaClause(*value_clauses)
-                )
-            ),
-            peewee.SQL('AS var'),
-            self._get_field_clause(fields),
-            peewee.SQL('WHERE var.%s NOT IN' % unique_entity.name),
-            peewee.EnclosedClause(
-                peewee.Clause(
-                    peewee.SQL('SELECT %s FROM' % unique_entity.name),
-                    model._as_entity()
-                )
-            )
-        ])
-
-        return self.build_query(clauses, alias_map)
-
+        return [self.__field.python_value(value) for value in values]

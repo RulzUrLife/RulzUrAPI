@@ -21,11 +21,11 @@ Look at the documentation for further informations:
 Getting started
 ---------------
 
-Just run the following command line by replacing <filepath>
-by the path of the JSON
+Just run the following command line by replacing <filepath> by the path of i
+the JSON, and <endpoint> by the endpoint you want to reach.
 
 .. code-block:: bash
 
-  $ curl -X POST -H "Content-Type: application/json" -s -d @<filepath> | jq '.'
-
+  $ curl -X POST -H "Content-Type: application/json" -s -d @<filepath> \
+      localhost:5000/<endpoint> | jq '.'
 

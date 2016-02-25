@@ -1,33 +1,32 @@
 """Helpers for rulzurapi"""
+import collections
+import itertools
 import functools
 
 import flask
-import marshmallow.exceptions as marshmallow_exc
-import utils.exceptions as api_exc
-import peewee
+import utils.exceptions as exc
 
+
+Direction = collections.namedtuple('Direction', ['title', 'text'])
 
 class JSONEncoder(flask.json.JSONEncoder):
+    pass
 
-    def default(self, obj):
-        return super(JSONEncoder, self).default(obj)
+def is_iterable(obj):
+    return hasattr(obj, '__iter__') and not isinstance(obj, str)
 
 def raise_or_return(schema, many=False):
     """Load the data in a dict, if errors are returned, an error is raised"""
-    data, errors = schema.load(flask.request.get_json(), many)
+    data = flask.request.get_json()
+    if is_iterable(data):
+        data, errors = schema.load(data, many)
+    else:
+        errors = 'JSON is incorrect'
+
     if errors:
-        raise api_exc.APIException('request malformed', 400, {'errors': errors})
+        raise exc.APIException('request malformed', 400, {'errors': errors})
 
     return data
-
-def model_entity(model):
-    """Retrieve the entity of a specific model
-
-    ie: "schema"."table"
-    """
-    query_compiler = peewee.QueryCompiler()
-    me, _ = query_compiler._parse_entity(model.as_entity(), None, None)
-    return me
 
 def unpack(value):
     """Return a three tuple of data, code, and headers"""
@@ -67,4 +66,24 @@ def template(mapping):
 
     return decorator
 
+def dict_merge(*dict_list):
+    '''recursively merges dict's. not just simple a['key'] = b['key'], if
+    both a and b have a key who's value is a dict then dict_merge is called
+    on both values and the result stored in the returned dictionary.
+    '''
+    result = collections.defaultdict(dict)
+    dicts_items = itertools.chain(*[d.items() for d in dict_list])
+
+    for key, value in dicts_items:
+        src = result[key]
+        if isinstance(src, dict) and isinstance(value, dict):
+            result[key] = dict_merge(src, value)
+        elif isinstance(src, dict) or isinstance(src, str):
+            result[key] = value
+        elif is_iterable(src) and is_iterable(value):
+            result[key] += value
+        else:
+            result[key] = value
+
+    return dict(result)
 

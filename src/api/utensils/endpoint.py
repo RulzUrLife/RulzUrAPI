@@ -43,7 +43,7 @@ def utensils_get():
 
 
 @blueprint.route('', methods=['POST'])
-@db.database.transaction()
+@db.database.atomic()
 def utensils_post():
     """Create an utensil"""
     utensil = utils.helpers.raise_or_return(schemas.utensil.post)
@@ -56,7 +56,7 @@ def utensils_post():
 
 
 @blueprint.route('', methods=['PUT'])
-@db.database.transaction()
+@db.database.atomic()
 def utensils_put():
     """Update multiple utensils"""
     utensils = utils.helpers.raise_or_return(schemas.utensil.put, True)
@@ -73,7 +73,7 @@ def utensil_get(utensil_id):
 
 
 @blueprint.route('/<int:utensil_id>', methods=['PUT'])
-@db.database.transaction()
+@db.database.atomic()
 def utensil_put(utensil_id):
     """Update the utensil for utensil_id"""
     utensil = utils.helpers.raise_or_return(schemas.utensil.put)
@@ -85,13 +85,17 @@ def utensil_put(utensil_id):
 
 
 @blueprint.route('/<int:utensil_id>/recipes')
-@db.database.transaction()
-def recipe_get(utensil_id):
+def recipes_get(utensil_id):
     """List all the recipes for utensil_id"""
+
+    # This ensure that the utensil exists
     get_utensil(utensil_id)
-    where_clause = models.RecipeUtensils.utensil == utensil_id
 
-    recipes = list(api.recipes.select_recipes(where_clause))
-    recipes, _ = schemas.recipe_schema_list.dump({'recipes': recipes})
-    return recipes
+    recipe_ids = (models.Recipe
+                  .select(models.Recipe.id)
+                  .join(models.RecipeUtensils)
+                  .where(models.RecipeUtensils.utensil == utensil_id))
 
+    recipes = list(api.recipes.select_recipes(models.Recipe.id << recipe_ids))
+
+    return schemas.recipe.dump(recipes, many=True).data

@@ -2,16 +2,15 @@
   "name": "recipe_4",
   "utensils": [
     {"id": 1},
-    {"name": "utensil_1"},
     {"name": "utensil_10"}
   ],
   "difficulty": 1,
   "people": 2,
-  "directions": {},
+  "directions": [],
   "duration": "0/5",
   "ingredients": [
-    {"id": 1, "measurement": "L", "quantity": 1},
     {"name": "ingredient_1", "measurement": "L", "quantity": 1},
+    {"id": 2, "measurement": "L", "quantity": 1},
     {"name": "ingredient_10", "measurement": "g", "quantity": 2},
     {"name": "ingredient_11", "measurement": "oz", "quantity": 3}
   ],

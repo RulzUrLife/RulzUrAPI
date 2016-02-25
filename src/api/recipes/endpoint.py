@@ -4,20 +4,13 @@ import peewee
 
 import db
 import db.models as models
+import db.utils
 
-import utils.helpers
+import utils.helpers as helpers
 import utils.schemas as schemas
+import utils.exceptions as exc
 
 blueprint = flask.Blueprint('recipes', __name__, template_folder='templates')
-
-def get_recipe(recipe_id):
-    """Get a specific recipe or raise 404 if it does not exists"""
-
-    try:
-        return db.models.Recipe.get(db.models.Recipe.id == recipe_id)
-    except peewee.DoesNotExist:
-        raise utils.helpers.APIException('Recipe not found', 404)
-
 
 def select_recipes(where_clause=None):
     """Select recipes according to where_clause if provided"""
@@ -26,83 +19,18 @@ def select_recipes(where_clause=None):
         models.Recipe
         .select(models.Recipe, models.RecipeIngredients, models.Ingredient,
                 models.RecipeUtensils, models.Utensil)
-        .join(models.RecipeIngredients)
-        .join(models.Ingredient)
+        .join(models.RecipeIngredients, peewee.JOIN.LEFT_OUTER)
+        .join(models.Ingredient, peewee.JOIN.LEFT_OUTER)
         .switch(models.Recipe)
         .join(models.RecipeUtensils, peewee.JOIN.LEFT_OUTER)
         .join(models.Utensil, peewee.JOIN.LEFT_OUTER)
+        .switch(models.Recipe)
     )
     if where_clause:
         recipes = recipes.where(where_clause)
 
     return recipes.aggregate_rows().execute()
 
-
-def lock_table(model):
-    """Lock table to avoid race conditions"""
-    model_entity = utils.helpers.model_entity(model)
-    lock_request = (
-        'LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE' % model_entity
-    )
-
-    #protect the database table against race condition
-    db.database.execute_sql(lock_request)
-
-
-def get_or_insert(model, elts_insert, elts_get):
-    """Get the elements from a model or create them if they not exist"""
-
-    if elts_insert:
-        model.insert_many(elts_insert, model.name).execute()
-        elts_insert = [elt['name'] for elt in elts_insert]
-    else:
-        elts_insert = []
-
-    list_elts = lambda x: list(model.select().where(x))
-    if elts_get and elts_insert:
-        return list_elts((model.id << elts_get) | (model.name << elts_insert))
-    elif elts_insert:
-        return list_elts(model.name << elts_insert)
-    elif elts_get:
-        return list_elts(model.id << elts_get)
-    else:
-        return []
-
-
-def ingredients_parsing(ingrs):
-    """Parse the ingredients before calling get_or_insert"""
-
-    ingrs_insert, ingrs_get = [], []
-    ingrs_id, ingrs_name = {}, {}
-
-    for ingr in ingrs:
-        ingr_id = ingr.pop('id', None)
-        ingr_name = ingr.pop('name', None)
-
-        if ingr_id:
-            ingrs_get.append(ingr_id)
-            ingrs_id[ingr_id] = ingr
-        if ingr_name:
-            ingrs_insert.append({'name': ingr_name})
-            ingrs_name[ingr_name] = ingr
-    db_ingrs = get_or_insert(models.Ingredient, ingrs_insert, ingrs_get)
-
-    # wraps again the ingredients into recipe_ingredients dict
-    for ingr in db_ingrs:
-        ingr_id = ingr.id
-        ingr_name = ingr.name
-
-        ingr_tmp = ingrs_id.get(ingr_id) or ingrs_name.get(ingr_name)
-        ingr_tmp['ingredient'] = ingr
-    return ingrs
-
-def utensils_parsing(utensils):
-    """Parse the utensils before calling get_or_insert"""
-    return get_or_insert(
-        models.Utensil,
-        [u for u in utensils if u.get('id') is None],
-        [u['id'] for u in utensils if u.get('id') is not None]
-    )
 
 def update_recipe(recipe):
     """Update a recipe"""
@@ -118,6 +46,7 @@ def update_recipe(recipe):
               .update(**recipe)
               .where(models.Recipe.id == recipe_id)
               .returning())
+
     if ingredients is not None:
         delete_old_entries(models.RecipeIngredients, recipe_id)
         ingredients = ingredients_parsing(ingredients)
@@ -152,68 +81,75 @@ def update_recipe(recipe):
 
 
 @blueprint.route('')
-@utils.helpers.template({'text/html': 'recipes.html'})
+@helpers.template({'text/html': 'recipes.html'})
 def recipes_get():
     """List all recipes"""
     recipes = select_recipes()
+
     return schemas.recipe.dump(recipes, many=True).data
 
 
 @blueprint.route('', methods=['POST'])
-@db.database.transaction()
+@db.utils.lock(models.Utensil, models.Ingredient)
 def recipes_post():
     """Create a recipe"""
-    recipe = utils.helpers.raise_or_return(utils.schemas.recipe.post)
-    import ipdb; ipdb.set_trace()
-    # avoid race condition by locking tables
-    lock_table(models.Utensil)
-    lock_table(models.Ingredient)
+    recipe = helpers.raise_or_return(schemas.recipe.post)
+    ret_id = lambda obj, key: {'recipe': recipe.id, key: obj['id']}
+    ret_recipe_ingr = lambda ingr: helpers.dict_merge(
+        ret_id(ingr, 'ingredient'),
+        {'quantity': ingr['quantity'], 'measurement': ingr['measurement']}
+    )
 
-    ingredients = ingredients_parsing(recipe['ingredients'])
-    utensils = utensils_parsing(recipe['utensils'])
-    recipe = models.Recipe.create(**recipe)
+    ingredients = recipe.pop('ingredients')
+    utensils = recipe.pop('utensils')
+    try:
+        recipe = models.Recipe.create(**recipe)
+    except peewee.IntegrityError:
+        raise exc.APIException('recipe already exists', 409)
+
     recipe.ingredients = ingredients
     recipe.utensils = utensils
 
-    recipe_utensils = [
-        {'recipe': recipe, 'utensil': utensil} for utensil in utensils
-    ]
+    if utensils:
+        recipe_utensils = [ret_id(utensil, 'utensil') for utensil in utensils]
+        models.RecipeUtensils.insert_many(recipe_utensils).execute()
 
-    models.RecipeUtensils.insert_many(recipe_utensils).execute()
+    if ingredients:
+        recipe_ingrs = [ret_recipe_ingr(ingr) for ingr in ingredients]
+        models.RecipeIngredients.insert_many(recipe_ingrs).execute()
 
-    for ingredient in ingredients:
-        ingredient['recipe'] = recipe
-    models.RecipeIngredients.insert_many(ingredients).execute()
-    return {
-        'recipe': utils.schemas.recipe_schema.dump(recipe).data
-    }, 201
+    return schemas.recipe.dump(recipe).data, 201
 
 
-@blueprint.route('/', methods=['PUT'])
-@db.database.transaction()
+@blueprint.route('', methods=['PUT'])
+@db.utils.lock(models.Utensil, models.Ingredient)
 def recipes_put():
     """Update multiple recipes"""
-    # avoid race condition by locking tables
 
-    lock_table(models.Utensil)
-    lock_table(models.Ingredient)
-
-    data = utils.helpers.raise_or_return(utils.schemas.recipe_schema_list)
+    data = helpers.raise_or_return(schemas.recipe.put, True)
     recipes = [update_recipe(recipe) for recipe in data['recipes']]
-    return utils.schemas.recipe_schema_list.dump({'recipes': recipes}).data
+    return schemas.recipe_schema_list.dump({'recipes': recipes}).data
 
 
-@blueprint.route('/<int:recipe_id>/')
-@utils.helpers.template({'text/html': 'recipe.html'})
+@blueprint.route('/<int:recipe_id>')
+@helpers.template({'text/html': 'recipe.html'})
 def recipe_get(recipe_id):
     """Provide the recipe for recipe_id"""
     try:
         recipe = next(select_recipes(models.Recipe.id == recipe_id))
     except StopIteration:
-        raise utils.helpers.APIException('Recipe not found', 404)
+        raise exc.APIException('recipe not found', 404)
 
-    recipe, _ = schemas.recipe_schema.dump(recipe)
-    return {'recipe': recipe}
+    return schemas.recipe.dump(recipe).data
+
+
+@blueprint.route('/<int:recipe_id>', methods=['PUT'])
+@db.database.atomic()
+def recipe_put(recipe_id):
+    recipe = helpers.raise_or_return(schemas.recipe.put)
+    if not recipe:
+        raise exc.APIException('no data provided for update')
+
 
 @blueprint.route('/<int:recipe_id>/ingredients/')
 def recipe_ingredients_get(recipe_id):

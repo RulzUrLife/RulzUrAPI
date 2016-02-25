@@ -43,7 +43,7 @@ def ingredients_get():
 
 
 @blueprint.route('', methods=['POST'])
-@db.database.transaction()
+@db.database.atomic()
 def ingredients_post():
     """Create an ingredient"""
     ingredient = utils.helpers.raise_or_return(schemas.ingredient.post)
@@ -56,7 +56,7 @@ def ingredients_post():
 
 
 @blueprint.route('', methods=['PUT'])
-@db.database.transaction()
+@db.database.atomic()
 def ingredients_put():
     """Update multiple ingredients"""
     ingredients = utils.helpers.raise_or_return(schemas.ingredient.put, True)
@@ -72,7 +72,7 @@ def ingredient_get(ingredient_id):
 
 
 @blueprint.route('/<int:ingredient_id>', methods=['PUT'])
-@db.database.transaction()
+@db.database.atomic()
 def ingredient_put(ingredient_id):
     """Update the ingredient for ingredient_id"""
     ingredient = utils.helpers.raise_or_return(schemas.ingredient.put)
@@ -84,11 +84,17 @@ def ingredient_put(ingredient_id):
 
 
 @blueprint.route('/<int:ingredient_id>/recipes')
-def recipes_get(ingredient_id):
+def recipe_get(ingredient_id):
     """List all the recipes for ingredient_id"""
-    get_ingredient(ingredient_id)
-    where_clause = models.RecipeIngredients.ingredient == ingredient_id
 
-    recipes = list(api.recipes.select_recipes(where_clause))
-    recipes, _ = schemas.recipe_schema_list.dump({'recipes': recipes})
-    return recipes
+    # This ensure that the ingredient exists
+    get_ingredient(ingredient_id)
+
+    recipe_ids = (models.Recipe
+                  .select(models.Recipe.id)
+                  .join(models.RecipeIngredients)
+                  .where(models.RecipeIngredients.ingredient == ingredient_id))
+
+    recipes = list(api.recipes.select_recipes(models.Recipe.id << recipe_ids))
+
+    return schemas.recipe.dump(recipes, many=True).data

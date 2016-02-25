@@ -1,2 +1,0 @@
-"""Integration testing module"""
-
